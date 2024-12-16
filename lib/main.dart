@@ -32,7 +32,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // List of text for navigation
   static const List<Text> _navigationText = <Text>[
-    Text('Real Time Info'),
+    Text('Real Time Information'),
     Text('Timetable'),
     Text('Routes'),
     Text('Fare Cost'),
@@ -40,7 +40,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // List of pages to display based on navigation selection
   static final List<Widget> _pages = <Widget>[
-    Center(child: _navigationText[0]),
+    Column(children: [
+      const Padding(
+        padding: EdgeInsets.only(top: 32.0, left: 16.0, right: 16.0),
+        child: SearchBar(
+          hintText: 'Search for a bus stop...',
+          trailing: [Icon(Icons.search)],
+        ),
+      ),
+      Expanded(child: Center(child: _navigationText[0],),)
+    ],),
     Center(child: _navigationText[1]),
     Center(child: _navigationText[2]),
     Center(child: _navigationText[3]),
