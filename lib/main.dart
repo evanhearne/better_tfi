@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
-void main() {
+// prompt user for location permission
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Geolocator.requestPermission();
   runApp(const MyApp());
 }
 
@@ -48,7 +52,27 @@ class _MyHomePageState extends State<MyHomePage> {
           trailing: [Icon(Icons.search)],
         ),
       ),
-      Expanded(child: Center(child: _navigationText[0],),)
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: FutureBuilder<Position>(
+          future: Geolocator.getCurrentPosition(locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.best,
+            distanceFilter: 10,
+          )),
+          builder: (BuildContext context, AsyncSnapshot<Position> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        } else if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        } else if (snapshot.hasData) {
+          final position = snapshot.data!;
+          return Text('Latitude: ${position.latitude}, Longitude: ${position.longitude}');
+        } else {
+          return const Text('No location data available');
+        }
+          },
+        ),
+      ),
     ],),
     Center(child: _navigationText[1]),
     Center(child: _navigationText[2]),
