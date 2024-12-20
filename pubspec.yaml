@@ -15,6 +15,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   geolocator: ^13.0.2
+  csv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -32,6 +33,7 @@ flutter:
   assets:
     # Add assets from the images directory to the application.
     - assets/images/
+    - assets/csv/
 
 flutter_icons:
   android: false               # Disable Android icon generation
