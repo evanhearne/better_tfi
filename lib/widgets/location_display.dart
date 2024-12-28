@@ -6,7 +6,7 @@ import 'package:csv/csv.dart';
 class LocationDisplay extends StatelessWidget {
   const LocationDisplay({super.key});
 
-  Future<Text> parseStops(AsyncSnapshot<Position> snapshot) async {
+  Future<List<ListTile>> parseStops(AsyncSnapshot<Position> snapshot) async {
     // specify path to txt file
     final file = await rootBundle.loadString('assets/csv/stops.txt');
     // read lines
@@ -24,15 +24,15 @@ class LocationDisplay extends StatelessWidget {
     for (List<dynamic> stop in stops) {
       final double distance = Geolocator.distanceBetween(userLocation.latitude, userLocation.longitude, stop[4], stop[5]);
       if (nearestStops.length < 8) {
-      nearestStops.add(stop);
-      distances.add(distance);
+        nearestStops.add(stop);
+        distances.add(distance);
       } else {
-      double maxDistance = distances.reduce((a, b) => a > b ? a : b);
-      int maxIndex = distances.indexOf(maxDistance);
-      if (distance < maxDistance) {
-        nearestStops[maxIndex] = stop;
-        distances[maxIndex] = distance;
-      }
+        double maxDistance = distances.reduce((a, b) => a > b ? a : b);
+        int maxIndex = distances.indexOf(maxDistance);
+        if (distance < maxDistance) {
+          nearestStops[maxIndex] = stop;
+          distances[maxIndex] = distance;
+        }
       }
     }
 
@@ -40,9 +40,15 @@ class LocationDisplay extends StatelessWidget {
     List<int> sortedIndices = List.generate(nearestStops.length, (index) => index);
     sortedIndices.sort((a, b) => distances[a].compareTo(distances[b]));
 
-    // return stop names
-    String stopNames = sortedIndices.map((index) => nearestStops[index][2]).join('\n');
-    return Text(stopNames);
+    // return stop names in ListTile widgets
+    List<ListTile> stopTiles = sortedIndices.map((index) {
+      return ListTile(
+        title: Text(nearestStops[index][2]),
+        subtitle: Text('Distance: ${distances[index].toStringAsFixed(2)} meters'),
+      );
+    }).toList();
+
+    return stopTiles;
   }
 
   @override
@@ -60,23 +66,22 @@ class LocationDisplay extends StatelessWidget {
         } else if (snapshot.hasError) {
           return Text('Error: ${snapshot.error}');
         } else if (snapshot.hasData) {
-          //final position = snapshot.data!;
-          //return Text('Latitude: ${position.latitude}, Longitude: ${position.longitude}');
-          return FutureBuilder<Text>(
+          return FutureBuilder<List<ListTile>>(
             future: parseStops(snapshot),
-            builder: (BuildContext context, AsyncSnapshot<Text> textSnapshot) {
-              if (textSnapshot.connectionState == ConnectionState.waiting) {
+            builder: (BuildContext context, AsyncSnapshot<List<ListTile>> listTileSnapshot) {
+              if (listTileSnapshot.connectionState == ConnectionState.waiting) {
                 return const CircularProgressIndicator();
-              } else if (textSnapshot.hasError) {
-                return Text('Error: ${textSnapshot.error}');
-              } else if (textSnapshot.hasData) {
-                return textSnapshot.data!;
+              } else if (listTileSnapshot.hasError) {
+                return Text('Error: ${listTileSnapshot.error}');
+              } else if (listTileSnapshot.hasData) {
+                return ListView(
+                  children: listTileSnapshot.data!,
+                );
               } else {
                 return const Text('No stop data available');
               }
             },
           );
-
         } else {
           return const Text('No location data available');
         }

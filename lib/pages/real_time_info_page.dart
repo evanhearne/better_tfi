@@ -6,20 +6,24 @@ class RealTimeInfoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(top: 32.0, left: 16.0, right: 16.0),
-          child: SearchBar(
-            hintText: 'Search for a bus stop...',
-            trailing: [Icon(Icons.search)],
+    return const Scaffold(
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: 32.0, left: 16.0, right: 16.0),
+            child: SearchBar(
+              hintText: 'Search for a bus stop...',
+              trailing: [Icon(Icons.search)],
+            ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.all(16.0),
-          child: LocationDisplay(),
-        ),
-      ],
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: LocationDisplay(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
