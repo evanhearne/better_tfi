@@ -24,6 +24,18 @@ This may be an employee/student who needs to commute, or a casual user wishing t
 
 As an alternative to TFI Live, users can have more choice within the market, and more choice can often lead to better results! 
 
+## How to work with project
+
+### Front-end (Flutter)
+ 
+From root directory run `flutter pub get` followed by `flutter run` to compile an application in debug mode.
+
+### Back-end (go)
+
+Ensure you obtain an API key from [here](https://developer.nationaltransport.ie/api-details#api=gtfsr&operation=gtfsr-v2) and paste into `backend/x-api-key.txt` . 
+
+From `backend` directory run `go run main.go` which will run the API on `localhost:8080` . 
+
 ## Getting Started
 
 This project is a starting point for a Flutter application that follows the
