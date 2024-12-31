@@ -43,10 +43,27 @@ class LocationDisplay extends StatelessWidget {
     // return stop names in ListTile widgets
     List<ListTile> stopTiles = sortedIndices.map((index) {
       return ListTile(
-        title: Text(nearestStops[index][2]),
-        subtitle: Text('Distance: ${distances[index].toStringAsFixed(2)} meters'),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+        Expanded(
+          child: Center(child: Text(nearestStops[index][2])),
+        ),
+        Expanded(
+          child: Center(child: Text('${distances[index].toStringAsFixed(0)} m')),
+        ),
+          ],
+        ),
       );
     }).toList();
+
+    // add header
+    stopTiles.insert(0, const ListTile(title: 
+      Row(children: [
+        Expanded(child: Center(child: Text('Stop Name', style: TextStyle(fontWeight: FontWeight.bold)))),
+        Expanded(child: Center(child: Text('Distance', style: TextStyle(fontWeight: FontWeight.bold)))),
+      ],)
+    ));
 
     return stopTiles;
   }
