@@ -27,6 +27,17 @@ As an alternative to TFI Live, users can have more choice within the market, and
 ## How to work with project
 
 ### Front-end (Flutter)
+
+#### Download GTFS Realtime files + extract to `/assets/csv`
+
+Run these commands to download and extract the necessary files to `/assets/csv` . 
+
+```bash
+cd assets/csv
+curl -O https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip
+unzip GTFS_Realtime.zip
+rm GTFS_Realtime.zip
+```
  
 From root directory run `flutter pub get` followed by `flutter run` to compile an application in debug mode.
 
