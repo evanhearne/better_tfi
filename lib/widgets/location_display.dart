@@ -5,9 +5,21 @@ import 'package:geolocator/geolocator.dart';
 import 'package:csv/csv.dart';
 import 'dart:convert';
 import 'dart:math';
+import '../proto/gtfs-realtime.pb.dart' as gtfs;
+
 
 class LocationDisplay extends StatelessWidget {
   const LocationDisplay({super.key});
+
+  Future<gtfs.FeedMessage> fetchGtfsData() async {
+  final response = await http.get(Uri.parse('http://localhost:8080/gtfsr'));
+
+  if (response.statusCode == 200) {
+    return gtfs.FeedMessage.fromBuffer(response.bodyBytes);
+  } else {
+    throw Exception('Failed to load GTFS data');
+  }
+}
 
   Future<List<List<dynamic>>> loadStops() async {
     final file = await rootBundle.loadString('assets/csv/stops.txt');
@@ -31,17 +43,15 @@ class LocationDisplay extends StatelessWidget {
   return routeMap;
 }
 
-  Future<List<Map<String, dynamic>>> fetchNextDepartures(String stopId, Map<String, String> routeMap) async {
+  Future<List<Map<String, dynamic>>> fetchNextDepartures(
+    String stopId, Map<String, String> routeMap, gtfs.FeedMessage feedMessage) async {
   // Fetch next departures for the stop
   final response = await http.get(Uri.parse('http://localhost:8081/stops/$stopId/next'));
-  print(stopId);
-
   if (response.statusCode == 200) {
     final List<dynamic> rawData = jsonDecode(response.body);
 
     // Map to fetch the required data
     return await Future.wait(rawData.map((entry) async {
-      // Extract trip_id
       final tripId = entry["trip_id"]["String"];
 
       // Fetch trip details from /trips/:tripid
@@ -50,20 +60,26 @@ class LocationDisplay extends StatelessWidget {
         throw Exception('Failed to fetch trip details for trip: $tripId');
       }
 
-      // Parse trip details
       final tripData = jsonDecode(tripResponse.body);
-      final routeId = tripData["route_id"]["String"]; // Extract route_id
+      final routeId = tripData["route_id"]["String"];
+
+      // Fetch delay from GTFS-RT feed
+      final delay = _getDelayForTrip(feedMessage, tripId);
+
+      // Adjust arrival time with delay
+      final originalArrivalTime = DateTime.parse(entry["arrival_time"]["String"]);
+      final adjustedArrivalTime = originalArrivalTime.add(Duration(seconds: delay));
 
       return {
         "trip_id": tripId,
-        "arrival_time": entry["arrival_time"]["String"],
+        "arrival_time": adjustedArrivalTime.toIso8601String(),
         "departure_time": entry["departure_time"]["String"],
         "stop_headsign": entry["stop_headsign"]["String"],
         "stop_sequence": entry["stop_sequence"]["Int32"],
         "pickup_type": entry["pickup_type"]["Int32"],
         "drop_off_type": entry["drop_off_type"]["Int32"],
         "time_point": entry["time_point"]["Int32"],
-        "route_short_name": routeMap[routeId] ?? "Unknown", // Map route_id to route_short_name
+        "route_short_name": routeMap[routeId] ?? "Unknown",
       };
     }).toList());
   } else {
@@ -71,11 +87,26 @@ class LocationDisplay extends StatelessWidget {
   }
 }
 
+/// Helper function to get delay for a trip from GTFS-RT feed
+int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
+  for (var entity in feedMessage.entity) {
+    if (entity.hasTripUpdate() && entity.tripUpdate.trip.tripId == tripId) {
+      final stopTimeUpdates = entity.tripUpdate.stopTimeUpdate;
+      for (var update in stopTimeUpdates) {
+        if (update.hasArrival() && update.arrival.hasDelay()) {
+          return update.arrival.delay;
+        }
+      }
+    }
+  }
+  return 0; // Default to no delay
+}
 
   Future<List<ListTile>> parseStops(
     AsyncSnapshot<Position> snapshot, List<Map<String, dynamic>> routes) async {
   final stops = await loadStops();
   final routeMap = await loadRouteShortNames(); // Load route_short_name mapping
+  final gtfsData = await fetchGtfsData(); // Fetch GTFS-RT data
   final Position userLocation = snapshot.data!;
 
   // Find 8 nearest stops
@@ -115,7 +146,7 @@ class LocationDisplay extends StatelessWidget {
 
   // Generate stop tiles with next bus info
   List<ListTile> stopTiles = await Future.wait(nearestStops.map((stop) async {
-    final nextDepartures = await fetchNextDepartures(stop["stop_id"], routeMap);
+    final nextDepartures = await fetchNextDepartures(stop["stop_id"], routeMap, gtfsData);
 
     return ListTile(
       title: Row(
@@ -185,7 +216,7 @@ int _calculateMinutesToArrival(String arrivalTime) {
     now.day,
     int.parse(arrivalTimeOnly.split(':')[0]), // Hours
     int.parse(arrivalTimeOnly.split(':')[1]), // Minutes
-    int.parse(arrivalTimeOnly.split(':')[2]), // Seconds
+    int.parse(arrivalTimeOnly.split(':')[2].split('.')[0]), // Seconds
   );
 
   // Calculate the difference in minutes
@@ -193,7 +224,6 @@ int _calculateMinutesToArrival(String arrivalTime) {
 
   return difference > 0 ? difference : 0; // Return 0 if time is in the past
 }
-
 
   @override
   Widget build(BuildContext context) {
