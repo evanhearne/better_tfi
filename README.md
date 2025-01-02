@@ -43,9 +43,27 @@ From root directory run `flutter pub get` followed by `flutter run` to compile a
 
 ### Back-end (go)
 
+#### GTFS Realtime API
+
 Ensure you obtain an API key from [here](https://developer.nationaltransport.ie/api-details#api=gtfsr&operation=gtfsr-v2) and paste into `backend/x-api-key.txt` . 
 
 From `backend/gtfsr` directory run `go run main.go` which will run the API on `localhost:8080` . 
+
+#### CSV API
+
+1. Create and run the docker image from root directory with the following command:
+
+    ```bash
+    docker run -d \
+    --name transit-db \
+    -p 5432:5432 \
+    -e POSTGRES_USER=admin \
+    -e POSTGRES_PASSWORD=admin \
+    -e POSTGRES_DB=transit \
+    postgres-transit
+    ```
+
+2. From `backend/csv` directory run `go run main.go` which will run the API on `localhost:8081` .
 
 ## Getting Started
 
