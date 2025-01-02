@@ -47,7 +47,8 @@ class LocationDisplay extends StatelessWidget {
     String stopId, Map<String, String> routeMap, gtfs.FeedMessage feedMessage) async {
   // Fetch next departures for the stop
   final response = await http.get(Uri.parse('http://localhost:8081/stops/$stopId/next'));
-  if (response.statusCode == 200) {
+
+  if (response.statusCode == 200 && response.body != "null") {
     final List<dynamic> rawData = jsonDecode(response.body);
 
     // Map to fetch the required data
@@ -82,6 +83,8 @@ class LocationDisplay extends StatelessWidget {
         "route_short_name": routeMap[routeId] ?? "Unknown",
       };
     }).toList());
+  } else if (response.statusCode == 200 && response.body == "null") {
+    return [];
   } else {
     throw Exception('Failed to fetch next departures for stop: $stopId');
   }
