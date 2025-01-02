@@ -63,7 +63,7 @@ From `backend/gtfsr` directory run `go run main.go` which will run the API on `l
     postgres-transit
     ```
 
-2. From `backend/csv` directory run `go run main.go` which will run the API on `localhost:8081` .
+2. From `backend/csv` directory run `go run -ldflags "-X main.dbUser=admin -X main.dbPassword=admin -X main.dbName=transit" main.go` which will run the API on `localhost:8081` .
 
 ## Getting Started
 
