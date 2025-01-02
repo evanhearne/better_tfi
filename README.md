@@ -45,7 +45,7 @@ From root directory run `flutter pub get` followed by `flutter run` to compile a
 
 Ensure you obtain an API key from [here](https://developer.nationaltransport.ie/api-details#api=gtfsr&operation=gtfsr-v2) and paste into `backend/x-api-key.txt` . 
 
-From `backend` directory run `go run main.go` which will run the API on `localhost:8080` . 
+From `backend/gtfsr` directory run `go run main.go` which will run the API on `localhost:8080` . 
 
 ## Getting Started
 
