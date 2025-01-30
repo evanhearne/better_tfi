@@ -83,3 +83,23 @@ CSV HEADER;
 
 CREATE INDEX idx_route_id ON trips(route_id);
 CREATE INDEX idx_trip_id_trips ON trips(trip_id);
+
+CREATE TABLE calendar (
+    service_id TEXT,
+    monday INTEGER,
+    tuesday INTEGER,
+    wednesday INTEGER,
+    thursday INTEGER,
+    friday INTEGER,
+    saturday INTEGER,
+    sunday INTEGER,
+    start_date DATE,
+    end_date DATE
+);
+
+COPY calendar(service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date)
+FROM '/data/calendar.txt'
+DELIMITER ','
+CSV HEADER;
+
+CREATE INDEX idx_service_id ON calendar(service_id);

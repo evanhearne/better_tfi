@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -94,12 +95,35 @@ func getStopDetails(c *gin.Context) {
 func getNextDepartures(c *gin.Context) {
 	stopID := c.Param("stop_id")
 
+	// Get the current date and day of the week
+	currentDate := time.Now().Format("2006-01-02")
+	currentDayOfWeek := time.Now().Weekday().String()
+
+	// Map Go's weekday to the column names in the calendar table
+	dayOfWeekMap := map[string]string{
+		"Sunday":    "sunday",
+		"Monday":    "monday",
+		"Tuesday":   "tuesday",
+		"Wednesday": "wednesday",
+		"Thursday":  "thursday",
+		"Friday":    "friday",
+		"Saturday":  "saturday",
+	}
+
+	dayOfWeekColumn := dayOfWeekMap[currentDayOfWeek]
+
 	rows, err := db.Query(`
-		SELECT * FROM stops 
-		WHERE stop_id = $1 AND departure_time >= CURRENT_TIME
-		ORDER BY departure_time ASC 
+		SELECT s.* FROM stops s
+		JOIN trips t ON s.trip_id = t.trip_id
+		JOIN calendar c ON t.service_id = c.service_id
+		WHERE s.stop_id = $1 
+		AND s.departure_time >= CURRENT_TIME
+		AND c.`+dayOfWeekColumn+` = 1
+		AND c.start_date <= $2
+		AND c.end_date >= $2
+		ORDER BY s.departure_time ASC 
 		LIMIT 8
-	`, stopID)
+	`, stopID, currentDate)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
