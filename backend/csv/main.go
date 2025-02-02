@@ -45,6 +45,7 @@ func main() {
 	router.GET("/stops/:stop_id", getStopDetails)
 	router.GET("/stops/:stop_id/next", getNextDepartures)
 	router.GET("/trips/:trip_id", getTripDetails)
+	router.GET("/stops", getStops)
 
 	// Start the server
 	router.Run(":8081")
@@ -113,7 +114,7 @@ func getNextDepartures(c *gin.Context) {
 	dayOfWeekColumn := dayOfWeekMap[currentDayOfWeek]
 
 	rows, err := db.Query(`
-		SELECT s.* FROM stops s
+		SELECT s.* FROM stop_times s
 		JOIN trips t ON s.trip_id = t.trip_id
 		JOIN calendar c ON t.service_id = c.service_id
 		WHERE s.stop_id = $1 
@@ -189,4 +190,58 @@ func getTripDetails(c *gin.Context) {
 		"block_id":        blockID,
 		"shape_id":        shapeID,
 	})
+}
+
+// Handler to get the eight nearest stops to the user's location
+func getStops(c *gin.Context) {
+	userLat := c.Query("lat")
+	userLng := c.Query("lng")
+
+	if userLat == "" || userLng == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Latitude and longitude are required"})
+		return
+	}
+
+	rows, err := db.Query(`
+		SELECT stop_id, stop_name, stop_lat, stop_lon,
+			   ( 6371000 * acos(
+				   cos(radians($1)) * cos(radians(stop_lat)) *
+				   cos(radians(stop_lon) - radians($2)) +
+				   sin(radians($1)) * sin(radians(stop_lat))
+				 )
+			   ) AS distance
+		FROM stops
+		ORDER BY distance
+		LIMIT 8
+	`, userLat, userLng)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	// Process results
+	var results []map[string]interface{}
+	for rows.Next() {
+		var stopID, stopName sql.NullString
+		var latitude, longitude sql.NullFloat64
+		var distance sql.NullFloat64
+
+		err = rows.Scan(&stopID, &stopName, &latitude, &longitude, &distance)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
+			return
+		}
+
+		results = append(results, gin.H{
+			"stop_id":   stopID,
+			"stop_name": stopName,
+			"latitude":  latitude,
+			"longitude": longitude,
+			"distance":  distance,
+		})
+	}
+
+	c.JSON(http.StatusOK, results)
 }

@@ -1,4 +1,4 @@
-CREATE TABLE stops (
+CREATE TABLE stop_times (
     trip_id TEXT,
     arrival_time TIME,
     departure_time TIME,
@@ -27,10 +27,10 @@ FROM '/data/stop_times.txt'
 DELIMITER ','
 CSV HEADER;
 
-CREATE INDEX idx_stop_id ON stops(stop_id);
-CREATE INDEX idx_trip_id ON stops(trip_id);
+CREATE INDEX idx_stop_id ON stop_times(stop_id);
+CREATE INDEX idx_trip_id ON stop_times(trip_id);
 
-INSERT INTO stops (trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type, timepoint)
+INSERT INTO stop_times (trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type, timepoint)
 SELECT 
     trip_id,
     CASE 
@@ -103,3 +103,42 @@ DELIMITER ','
 CSV HEADER;
 
 CREATE INDEX idx_service_id ON calendar(service_id);
+
+CREATE TABLE routes (
+    route_id TEXT,
+    agency_id TEXT,
+    route_short_name TEXT,
+    route_long_name TEXT,
+    route_desc TEXT,
+    route_type INTEGER,
+    route_url TEXT,
+    route_color TEXT,
+    route_text_color TEXT
+);
+
+COPY routes(route_id, agency_id, route_short_name, route_long_name, route_desc, route_type, route_url, route_color, route_text_color)
+FROM '/data/routes.txt'
+DELIMITER ','
+CSV HEADER;
+
+CREATE INDEX idx_route_id_routes ON routes(route_id);
+
+CREATE TABLE stops (
+    stop_id TEXT,
+    stop_code TEXT,
+    stop_name TEXT,
+    stop_desc TEXT,
+    stop_lat REAL,
+    stop_lon REAL,
+    zone_id TEXT,
+    stop_url TEXT,
+    location_type INTEGER,
+    parent_station TEXT
+);
+
+COPY stops(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station)
+FROM '/data/stops.txt'
+DELIMITER ','
+CSV HEADER;
+
+CREATE INDEX idx_stop_id_stops ON stops(stop_id);
