@@ -234,12 +234,15 @@ func getStops(c *gin.Context) {
 			return
 		}
 
+		// convert distance from float64 to int
+		distanceInt := int(distance.Float64)
+
 		results = append(results, gin.H{
 			"stop_id":   stopID,
 			"stop_name": stopName,
 			"latitude":  latitude,
 			"longitude": longitude,
-			"distance":  distance,
+			"distance":  distanceInt,
 		})
 	}
 
