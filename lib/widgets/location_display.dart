@@ -107,50 +107,32 @@ int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
 
   Future<List<ListTile>> parseStops(
     AsyncSnapshot<Position> snapshot, List<Map<String, dynamic>> routes) async {
-  final stops = await loadStops();
   final routeMap = await loadRouteShortNames(); // Load route_short_name mapping
   final gtfsData = await fetchGtfsData(); // Fetch GTFS-RT data
   final Position userLocation = snapshot.data!;
 
-  // Find 8 nearest stops
+  // use API to get stops --> localhost:8081/stops
+  final response = await http.get(Uri.parse('http://localhost:8081/stops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
   List<Map<String, dynamic>> nearestStops = [];
-  List<double> distances = [];
 
-  for (List<dynamic> stop in stops) {
-    final double distance = Geolocator.distanceBetween(
-        userLocation.latitude, userLocation.longitude, stop[4], stop[5]);
-    if (nearestStops.length < 8) {
-      nearestStops.add({
-        "stop_id": stop[0],
-        "stop_name": stop[2],
-        "latitude": stop[4],
-        "longitude": stop[5],
-        "distance": distance,
-      });
-      distances.add(distance);
-    } else {
-      double maxDistance = distances.reduce(max);
-      int maxIndex = distances.indexOf(maxDistance);
-      if (distance < maxDistance) {
-        nearestStops[maxIndex] = {
-          "stop_id": stop[0],
-          "stop_name": stop[2],
-          "latitude": stop[4],
-          "longitude": stop[5],
-          "distance": distance,
-        };
-        distances[maxIndex] = distance;
-      }
-    }
+  if (response.statusCode == 200) {
+    final List<dynamic> rawData = jsonDecode(response.body);
+    nearestStops = rawData.map<Map<String, dynamic>>((stop) {
+      return {
+        "stop_id": stop["stop_id"]["String"],
+        "stop_name": stop["stop_name"]["String"],
+        "latitude": stop["latitude"]["String"],
+        "longitude": stop["longitude"]["String"],
+        "distance": stop["distance"],
+      };
+    }).toList();
+  } else {
+    throw Exception('Failed to fetch nearest stops');
   }
-
-  // Sort stops by distance
-  nearestStops.sort((a, b) => a["distance"].compareTo(b["distance"]));
 
   // Generate stop tiles with next bus info
   List<ListTile> stopTiles = await Future.wait(nearestStops.map((stop) async {
     final nextDepartures = await fetchNextDepartures(stop["stop_id"], routeMap, gtfsData);
-
     return ListTile(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -159,7 +141,7 @@ int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
             child: Center(child: Text(stop["stop_name"])),
           ),
           Expanded(
-            child: Center(child: Text('${stop["distance"].toStringAsFixed(0)} m')),
+            child: Center(child: Text('${stop["distance"]} m')),
           ),
           Expanded(
             child: Center(
