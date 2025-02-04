@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:csv/csv.dart';
 import 'dart:convert';
 import '../proto/gtfs-realtime.pb.dart' as gtfs;
 
@@ -18,21 +16,6 @@ class LocationDisplay extends StatelessWidget {
   } else {
     throw Exception('Failed to load GTFS data');
   }
-}
-
-  Future<Map<String, String>> loadRouteShortNames() async {
-  final file = await rootBundle.loadString('assets/csv/routes.txt');
-  final lines = file.split('\n');
-  lines.removeAt(0); // Remove header
-
-  final Map<String, String> routeMap = {};
-  for (final line in lines) {
-    final fields = line.split(',');
-    if (fields.length > 2) {
-      routeMap[fields[0]] = fields[2]; // Map route_id to route_short_name
-    }
-  }
-  return routeMap;
 }
 
   Future<List<Map<String, dynamic>>> fetchNextDepartures(
@@ -99,7 +82,15 @@ int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
 
   Future<List<ListTile>> parseStops(
     AsyncSnapshot<Position> snapshot, List<Map<String, dynamic>> routes) async {
-  final routeMap = await loadRouteShortNames(); // Load route_short_name mapping
+  // final routeMap = await loadRouteShortNames(); // Load route_short_name mapping
+  final routeResponse = await http.get(Uri.parse('http://localhost:8081/routes'));
+  Map<String,String> routeMap = {};
+  if (routeResponse.statusCode == 200) {
+    final List<dynamic> rawData = jsonDecode(routeResponse.body);
+    for (var route in rawData) {
+      routeMap[route["route_id"]["String"]] = route["route_short_name"]["String"];
+    }
+  }
   final gtfsData = await fetchGtfsData(); // Fetch GTFS-RT data
   final Position userLocation = snapshot.data!;
 
