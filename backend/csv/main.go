@@ -46,6 +46,7 @@ func main() {
 	router.GET("/stops/:stop_id/next", getNextDepartures)
 	router.GET("/trips/:trip_id", getTripDetails)
 	router.GET("/stops", getStops)
+	router.GET("/routes", getRoutes)
 
 	// Start the server
 	router.Run(":8081")
@@ -77,15 +78,15 @@ func getStopDetails(c *gin.Context) {
 		}
 
 		results = append(results, gin.H{
-			"trip_id":       tripID,
-			"stop_id":       stopID,
-			"arrival_time":  arrivalTime,
+			"trip_id":        tripID,
+			"stop_id":        stopID,
+			"arrival_time":   arrivalTime,
 			"departure_time": departureTime,
-			"stop_sequence": stopSequence,
-			"stop_headsign": stopHeadSign,
-			"pickup_type":   pickupType,
-			"drop_off_type": dropOffType,
-			"time_point":    timePoint,
+			"stop_sequence":  stopSequence,
+			"stop_headsign":  stopHeadSign,
+			"pickup_type":    pickupType,
+			"drop_off_type":  dropOffType,
+			"time_point":     timePoint,
 		})
 	}
 
@@ -146,15 +147,15 @@ func getNextDepartures(c *gin.Context) {
 		}
 
 		results = append(results, gin.H{
-			"trip_id":       tripID,
-			"stop_id":       stopID,
-			"arrival_time":  arrivalTime,
+			"trip_id":        tripID,
+			"stop_id":        stopID,
+			"arrival_time":   arrivalTime,
 			"departure_time": departureTime,
-			"stop_sequence": stopSequence,
-			"stop_headsign": stopHeadSign,
-			"pickup_type":   pickupType,
-			"drop_off_type": dropOffType,
-			"time_point":    timePoint,
+			"stop_sequence":  stopSequence,
+			"stop_headsign":  stopHeadSign,
+			"pickup_type":    pickupType,
+			"drop_off_type":  dropOffType,
+			"time_point":     timePoint,
 		})
 	}
 
@@ -246,5 +247,37 @@ func getStops(c *gin.Context) {
 		})
 	}
 
+	c.JSON(http.StatusOK, results)
+}
+
+func getRoutes(c *gin.Context) {
+	rows, err := db.Query(`SELECT * FROM routes`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	// Process results
+	var results []map[string]interface{}
+	for rows.Next() {
+		var routeId, agencyId, routeShortName, routeLongName, routeDesc, routeType, routeUrl, routeColor, routeTextColor sql.NullString
+		err = rows.Scan(&routeId, &agencyId, &routeShortName, &routeLongName, &routeDesc, &routeType, &routeUrl, &routeColor, &routeTextColor)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
+			return
+		}
+		results = append(results, gin.H{
+			"route_id":         routeId,
+			"agency_id":        agencyId,
+			"route_short_name": routeShortName,
+			"route_long_name":  routeLongName,
+			"route_desc":       routeDesc,
+			"route_type":       routeType,
+			"route_color":      routeColor,
+			"route_url":        routeUrl,
+			"route_text_color": routeTextColor,
+		})
+	}
 	c.JSON(http.StatusOK, results)
 }
