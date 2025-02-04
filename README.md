@@ -54,8 +54,8 @@ From `backend/gtfsr` directory run `go run main.go` which will run the API on `l
 1. Create and run the docker image from root directory with the following command:
 
     ```bash
-    docker build -t postgres-transit .
-    docker run -d \
+    podman build -t postgres-transit .
+    podman run -d \
     --name transit-db \
     -p 5432:5432 \
     -e POSTGRES_USER=admin \
