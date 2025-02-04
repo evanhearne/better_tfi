@@ -20,13 +20,6 @@ class LocationDisplay extends StatelessWidget {
   }
 }
 
-  Future<List<List<dynamic>>> loadStops() async {
-    final file = await rootBundle.loadString('assets/csv/stops.txt');
-    final lines = file.split('\n');
-    lines.removeAt(0); // Remove header
-    return const CsvToListConverter().convert(lines.join('\n'));
-  }
-
   Future<Map<String, String>> loadRouteShortNames() async {
   final file = await rootBundle.loadString('assets/csv/routes.txt');
   final lines = file.split('\n');
