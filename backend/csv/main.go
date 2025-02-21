@@ -46,6 +46,7 @@ func main() {
 	router.GET("/stops/:stop_id/next", getNextDepartures)
 	router.GET("/trips/:trip_id", getTripDetails)
 	router.GET("/nearestStops", getNearestStops)
+	router.GET("/stops", getStops)
 	router.GET("/routes", getRoutes)
 
 	// Start the server
@@ -191,6 +192,49 @@ func getTripDetails(c *gin.Context) {
 		"block_id":        blockID,
 		"shape_id":        shapeID,
 	})
+}
+
+// Handler to get eight stops based on user query
+func getStops(c *gin.Context) {
+	query := c.Query("query")
+
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query is required to not be empty"})
+		return
+	}
+
+	// Query stops db with search query and return first 8 stops in query result
+	rows, err := db.Query(`
+		SELECT stop_id, stop_name
+		FROM stops
+		WHERE stop_name ILIKE $1
+		LIMIT 8
+	`, "%"+query+"%")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	// Process results
+	var results []map[string]interface{}
+	for rows.Next() {
+		var stopID, stopName sql.NullString
+
+		err = rows.Scan(&stopID, &stopName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
+			return
+		}
+
+		results = append(results, gin.H{
+			"stop_id":   stopID,
+			"stop_name": stopName,
+		})
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 // Handler to get the eight nearest stops to the user's location
