@@ -25,7 +25,15 @@ class SearchResultDisplay extends StatelessWidget {
 
     // use API to get stops --> localhost:8081/stops
     final response = await http.get(Uri.parse('http://localhost:8081/stops?query=${searchQuery}'));
-    
+
+    if (response.body == 'null') {
+      return [
+        const ListTile(
+          title: Center(child: Text('No Search Results')),
+        )
+      ];
+    }
+
     // parse query to usuable format
     List<Map<String, dynamic>> stops = [];
 
