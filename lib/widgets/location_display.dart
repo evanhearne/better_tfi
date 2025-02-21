@@ -94,8 +94,8 @@ int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
   final gtfsData = await fetchGtfsData(); // Fetch GTFS-RT data
   final Position userLocation = snapshot.data!;
 
-  // use API to get stops --> localhost:8081/stops
-  final response = await http.get(Uri.parse('http://localhost:8081/stops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
+  // use API to get stops --> localhost:8081/nearestStops
+  final response = await http.get(Uri.parse('http://localhost:8081/nearestStops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
   List<Map<String, dynamic>> nearestStops = [];
 
   if (response.statusCode == 200) {

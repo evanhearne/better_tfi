@@ -45,7 +45,7 @@ func main() {
 	router.GET("/stops/:stop_id", getStopDetails)
 	router.GET("/stops/:stop_id/next", getNextDepartures)
 	router.GET("/trips/:trip_id", getTripDetails)
-	router.GET("/stops", getStops)
+	router.GET("/nearestStops", getNearestStops)
 	router.GET("/routes", getRoutes)
 
 	// Start the server
@@ -194,7 +194,7 @@ func getTripDetails(c *gin.Context) {
 }
 
 // Handler to get the eight nearest stops to the user's location
-func getStops(c *gin.Context) {
+func getNearestStops(c *gin.Context) {
 	userLat := c.Query("lat")
 	userLng := c.Query("lng")
 
