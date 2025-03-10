@@ -127,7 +127,7 @@ class _RealTimeInfoPageState extends State<RealTimeInfoPage> {
               trailing: const [Icon(Icons.search)],
               onChanged: (value) {
                 setState(() {
-                  _searchQuery = value;
+                  _searchQuery = value.replaceAll('’', '\''); // single quote filter bug fix
                 });
               },
             ),
