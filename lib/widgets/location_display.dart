@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:better_tfi/widgets/next_arrivals_display.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,15 +7,40 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
 import '../pages/real_time_info_page.dart' as rti;
 
-class LocationDisplay extends StatelessWidget {
+class LocationDisplay extends StatefulWidget {
   final String apiBaseUrl1;
   final String apiBaseUrl2;
 
   const LocationDisplay({super.key, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
-  Future<List<ListTile>> parseStops(
-    BuildContext context, AsyncSnapshot<Position> snapshot) async {
-    final routeResponse = await http.get(Uri.parse('$apiBaseUrl2/routes'));
+  @override
+  LocationDisplayState createState() => LocationDisplayState();
+}
+
+class LocationDisplayState extends State<LocationDisplay> {
+
+  late Timer _timer;
+  late Future<List<ListTile>> _stopTilesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _stopTilesFuture = parseStops();
+    _timer = Timer.periodic(const Duration(seconds: 20), (timer) {
+      setState(() {
+        _stopTilesFuture = parseStops();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Future<List<ListTile>> parseStops() async {
+    final routeResponse = await http.get(Uri.parse('${widget.apiBaseUrl2}/routes'));
     Map<String,String> routeMap = {};
     if (routeResponse.statusCode == 200) {
       final List<dynamic> rawData = jsonDecode(routeResponse.body);
@@ -21,10 +48,15 @@ class LocationDisplay extends StatelessWidget {
         routeMap[route["route_id"]["String"]] = route["route_short_name"]["String"];
       }
     }
-    final gtfsData = await rti.fetchGtfsData(apiBaseUrl1);
-    final Position userLocation = snapshot.data!;
+    final gtfsData = await rti.fetchGtfsData(widget.apiBaseUrl1);
+    final Position userLocation = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 10,
+      ),
+    );
 
-    final response = await http.get(Uri.parse('$apiBaseUrl2/nearestStops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
+    final response = await http.get(Uri.parse('${widget.apiBaseUrl2}/nearestStops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
     List<Map<String, dynamic>> nearestStops = [];
 
     if (response.statusCode == 200) {
@@ -43,7 +75,7 @@ class LocationDisplay extends StatelessWidget {
     }
 
     List<ListTile> stopTiles = await Future.wait(nearestStops.map((stop) async {
-      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData, apiBaseUrl2);
+      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData, widget.apiBaseUrl2);
       return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Adjust padding if needed
         title: Card(
@@ -135,7 +167,7 @@ class LocationDisplay extends StatelessWidget {
           return Text('Error: ${snapshot.error}');
         } else if (snapshot.hasData) {
           return FutureBuilder<List<ListTile>>(
-            future: parseStops(context, snapshot), // Routes can be passed if needed
+            future: _stopTilesFuture, // Routes can be passed if needed
             builder: (BuildContext context, AsyncSnapshot<List<ListTile>> listTileSnapshot) {
               if (listTileSnapshot.connectionState == ConnectionState.waiting) {
                 return const CircularProgressIndicator();

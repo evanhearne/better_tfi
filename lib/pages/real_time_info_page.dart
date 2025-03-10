@@ -109,10 +109,10 @@ class RealTimeInfoPage extends StatefulWidget {
   const RealTimeInfoPage({super.key, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
   @override
-  _RealTimeInfoPageState createState() => _RealTimeInfoPageState();
+  RealTimeInfoPageState createState() => RealTimeInfoPageState();
 }
 
-class _RealTimeInfoPageState extends State<RealTimeInfoPage> {
+class RealTimeInfoPageState extends State<RealTimeInfoPage> {
   String _searchQuery = '';
 
   @override
