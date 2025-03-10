@@ -38,6 +38,8 @@ curl -O https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip
 unzip GTFS_Realtime.zip
 rm GTFS_Realtime.zip
 ```
+
+**IMPORTANT** : Make sure you define your API endpoints in `main.dart` before running. Instructions on how to run API can be seen below. 
  
 From root directory run `flutter pub get` followed by `flutter run` to compile an application in debug mode.
 

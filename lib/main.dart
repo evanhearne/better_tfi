@@ -5,8 +5,10 @@ import 'pages/timetable_page.dart';
 import 'pages/routes_page.dart';
 import 'pages/fare_cost_page.dart';
 
-const String apiBaseUrl1 = 'http://192.168.68.113:8080';
-const String apiBaseUrl2 = 'http://192.168.68.113:8081';
+// Replace the strings here with your own API endpoints
+
+const String apiBaseUrl1 = 'http://192.168.68.113:8080'; // gtfsr endpoint
+const String apiBaseUrl2 = 'http://192.168.68.113:8081'; // csv endpoint
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
