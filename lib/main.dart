@@ -5,14 +5,20 @@ import 'pages/timetable_page.dart';
 import 'pages/routes_page.dart';
 import 'pages/fare_cost_page.dart';
 
+const String apiBaseUrl1 = 'http://192.168.68.113:8080';
+const String apiBaseUrl2 = 'http://192.168.68.113:8081';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Geolocator.requestPermission();
-  runApp(const MyApp());
+  runApp(MyApp(apiBaseUrl1: apiBaseUrl1, apiBaseUrl2: apiBaseUrl2));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String apiBaseUrl1;
+  final String apiBaseUrl2;
+
+  const MyApp({super.key, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
   @override
   Widget build(BuildContext context) {
@@ -22,13 +28,16 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(162, 0, 255, 191)),
         useMaterial3: true,
       ),
-      home: const MyHomePage(),
+      home: MyHomePage(apiBaseUrl1: apiBaseUrl1, apiBaseUrl2: apiBaseUrl2),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+  final String apiBaseUrl1;
+  final String apiBaseUrl2;
+
+  const MyHomePage({super.key, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -44,12 +53,18 @@ class _MyHomePageState extends State<MyHomePage> {
     Text('Fare Cost'),
   ];
 
-  static final List<Widget> _pages = <Widget>[
-    const RealTimeInfoPage(),
-    const TimetablePage(),
-    const RoutesPage(),
-    const FareCostPage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = <Widget>[
+      RealTimeInfoPage(apiBaseUrl1: widget.apiBaseUrl1, apiBaseUrl2: widget.apiBaseUrl2),
+      const TimetablePage(),
+      const RoutesPage(),
+      const FareCostPage(),
+    ];
+  }
 
   void _onDestinationSelected(int index) {
     setState(() {

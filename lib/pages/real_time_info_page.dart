@@ -30,8 +30,8 @@ int calculateMinutesToArrival(String arrivalTime) {
   return difference > 0 ? difference : 0; // Return 0 if time is in the past
 }
 
-Future<gtfs.FeedMessage> fetchGtfsData() async {
-  final response = await http.get(Uri.parse('http://localhost:8080/gtfsr'));
+Future<gtfs.FeedMessage> fetchGtfsData(String apiBaseUrl1) async {
+  final response = await http.get(Uri.parse('$apiBaseUrl1/gtfsr'));
 
   if (response.statusCode == 200) {
     return gtfs.FeedMessage.fromBuffer(response.bodyBytes);
@@ -41,9 +41,9 @@ Future<gtfs.FeedMessage> fetchGtfsData() async {
 }
 
 Future<List<Map<String, dynamic>>> fetchNextDepartures(
-    String stopId, Map<String, String> routeMap, gtfs.FeedMessage feedMessage) async {
+    String stopId, Map<String, String> routeMap, gtfs.FeedMessage feedMessage, String apiBaseUrl2) async {
   // Fetch next departures for the stop
-  final response = await http.get(Uri.parse('http://localhost:8081/stops/$stopId/next'));
+  final response = await http.get(Uri.parse('$apiBaseUrl2/stops/$stopId/next'));
 
   if (response.statusCode == 200 && response.body != "null") {
     final List<dynamic> rawData = jsonDecode(response.body);
@@ -53,7 +53,7 @@ Future<List<Map<String, dynamic>>> fetchNextDepartures(
       final tripId = entry["trip_id"]["String"];
 
       // Fetch trip details from /trips/:tripid
-      final tripResponse = await http.get(Uri.parse('http://localhost:8081/trips/$tripId'));
+      final tripResponse = await http.get(Uri.parse('$apiBaseUrl2/trips/$tripId'));
       if (tripResponse.statusCode != 200) {
         throw Exception('Failed to fetch trip details for trip: $tripId');
       }
@@ -103,7 +103,10 @@ int _getDelayForTrip(gtfs.FeedMessage feedMessage, String tripId) {
 }
 
 class RealTimeInfoPage extends StatefulWidget {
-  const RealTimeInfoPage({super.key});
+  final String apiBaseUrl1;
+  final String apiBaseUrl2;
+
+  const RealTimeInfoPage({super.key, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
   @override
   _RealTimeInfoPageState createState() => _RealTimeInfoPageState();
@@ -133,8 +136,8 @@ class _RealTimeInfoPageState extends State<RealTimeInfoPage> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: _searchQuery.isEmpty
-                  ? const LocationDisplay()
-                  : SearchResultDisplay(searchQuery: _searchQuery),
+                  ? LocationDisplay(apiBaseUrl1: widget.apiBaseUrl1, apiBaseUrl2: widget.apiBaseUrl2)
+                  : SearchResultDisplay(searchQuery: _searchQuery, apiBaseUrl1: widget.apiBaseUrl1, apiBaseUrl2: widget.apiBaseUrl2),
             ),
           ),
         ],

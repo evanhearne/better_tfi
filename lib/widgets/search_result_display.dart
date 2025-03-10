@@ -1,3 +1,4 @@
+import 'package:better_tfi/widgets/next_arrivals_display.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -5,11 +6,13 @@ import '../pages/real_time_info_page.dart' as rti;
 
 class SearchResultDisplay extends StatelessWidget {
   final String searchQuery;
+  final String apiBaseUrl1;
+  final String apiBaseUrl2;
 
-  const SearchResultDisplay({super.key, required this.searchQuery});
+  const SearchResultDisplay({super.key, required this.searchQuery, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
-  Future<List<ListTile>> parseStops(String searchQuery) async {
-    final routeResponse = await http.get(Uri.parse('http://localhost:8081/routes'));
+  Future<List<ListTile>> parseStops(BuildContext context, String searchQuery) async {
+    final routeResponse = await http.get(Uri.parse('$apiBaseUrl2/routes'));
     
     Map<String,String> routeMap = {};
     
@@ -20,11 +23,9 @@ class SearchResultDisplay extends StatelessWidget {
       }
     }
 
-    // Fetch GTFS-RT Data
-    final gtfsData = await rti.fetchGtfsData(); // Fetch GTFS-RT data
+    final gtfsData = await rti.fetchGtfsData(apiBaseUrl1);
 
-    // use API to get stops --> localhost:8081/stops
-    final response = await http.get(Uri.parse('http://localhost:8081/stops?query=${searchQuery}'));
+    final response = await http.get(Uri.parse('$apiBaseUrl2/stops?query=$searchQuery'));
 
     if (response.body == 'null') {
       return [
@@ -34,7 +35,6 @@ class SearchResultDisplay extends StatelessWidget {
       ];
     }
 
-    // parse query to usuable format
     List<Map<String, dynamic>> stops = [];
 
     if (response.statusCode == 200) {
@@ -49,28 +49,52 @@ class SearchResultDisplay extends StatelessWidget {
       throw Exception("Failed to fetch stops");
     }
 
-    // Generate stop tiles
     List<ListTile> stopTiles = await Future.wait(stops.map((stop) async {
-      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData);
+      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData, apiBaseUrl2);
       return ListTile(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Center(child: Text(stop["stop_name"]))
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Adjust padding if needed
+        title: Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NextArrivalsDisplay(
+                    stopName: stop["stop_name"],
+                    nextDepartures: nextDepartures,
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(10), // Ensures ripple effect follows the card's shape
+            child: Padding(
+              padding: const EdgeInsets.all(10), // Add padding inside the card
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Center(child: Text(stop["stop_name"])),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: nextDepartures.isNotEmpty
+                          ? Text(
+                              '${nextDepartures[0]["route_short_name"]} in ${rti.calculateMinutesToArrival(nextDepartures[0]["arrival_time"])} min')
+                          : const Text('No buses'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            Expanded(child: Center(
-              child: nextDepartures.isNotEmpty
-                  ? Text(
-                      '${nextDepartures[0]["route_short_name"]} in ${rti.calculateMinutesToArrival(nextDepartures[0]["arrival_time"])} min')
-                  : const Text('No buses'),
-            )),
-          ],
-        )
+          ),
+        ),
       );
     }).toList());
 
-    // Add header
     stopTiles.insert(
       0,
       const ListTile(
@@ -94,9 +118,9 @@ class SearchResultDisplay extends StatelessWidget {
   }
   
   @override
-      Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return FutureBuilder<List<ListTile>>(
-      future: parseStops(searchQuery), // Replace 'searchQuery' with the actual query
+      future: parseStops(context, searchQuery),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -112,5 +136,4 @@ class SearchResultDisplay extends StatelessWidget {
       },
     );
   }
-
 }
