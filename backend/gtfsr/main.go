@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -14,17 +12,10 @@ var (
 	cache          []byte
 	cacheTimestamp time.Time
 	cacheMutex     sync.Mutex
+	apiKey string 				// ldflag
 )
 
 func main() {
-	// Obtain API key from file
-	apiKey, err := os.ReadFile("x-api-key.txt")
-	if err != nil {
-		fmt.Println("Error reading API key:", err)
-		return
-	}
-	apiKeyStr := strings.TrimSpace(string(apiKey))
-
 	// Start HTTP server
 	http.HandleFunc("/gtfsr", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -32,7 +23,7 @@ func main() {
 			return
 		}
 
-		response, err := getCachedGtfsrData(apiKeyStr)
+		response, err := getCachedGtfsrData(apiKey)
 		if err != nil {
 			http.Error(w, "Error fetching GTFSR data: "+err.Error(), http.StatusInternalServerError)
 			return

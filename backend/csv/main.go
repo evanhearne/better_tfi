@@ -17,11 +17,13 @@ var (
 	dbUser     string
 	dbPassword string
 	dbName     string
+	ipAddress  string
+	port  	   string
 )
 
 func main() {
 	// Load environment variables from ldflags
-	connStr := fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", dbUser, dbPassword, dbName)
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, ipAddress, port, dbName)
 
 	// Connect to the database
 	var err error

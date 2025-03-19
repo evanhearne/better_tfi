@@ -45,11 +45,24 @@ From root directory run `flutter pub get` followed by `flutter run` to compile a
 
 ### Back-end (go)
 
+**APIs can now be launched as containers !**
+
+See below for how each API/backend can be launched as a container. 
+
 #### GTFS Realtime API
 
-Ensure you obtain an API key from [here](https://developer.nationaltransport.ie/api-details#api=gtfsr&operation=gtfsr-v2) and paste into `backend/x-api-key.txt` . 
+Ensure you obtain an API key from [here](https://developer.nationaltransport.ie/api-details#api=gtfsr&operation=gtfsr-v2) and pass as ldflag when running the API.  
 
-From `backend/gtfsr` directory run `go run main.go` which will run the API on `localhost:8080` . 
+From `backend/gtfsr` directory run `go run -ldflag "-X main.apiKey=<YOUR_API_KEY>" main.go` which will run the API on `localhost:8080` . 
+
+Alternatively, you can build and run as an image in `backend/gtfsr` with
+
+```bash
+podman build -t gtfsr-api .
+podman run -d -p 8080:8080 -e apikey=<YOUR_API_KEY> gtfsr-api
+```
+
+which will run the API on `localhost:8080` . 
 
 #### CSV API
 
@@ -66,8 +79,15 @@ From `backend/gtfsr` directory run `go run main.go` which will run the API on `l
     postgres-transit
     ```
 
-2. From `backend/csv` directory run `go run -ldflags "-X main.dbUser=admin -X main.dbPassword=admin -X main.dbName=transit" main.go` which will run the API on `localhost:8081` .
+2. From `backend/csv` directory run `go run -ldflags "-X main.dbUser=admin -X main.dbPassword=admin -X main.dbName=transit" main.go` which will run the API on `localhost:8081` . 
 
+3. Alternatively from `backend/csv` run `podman build -t csv-api .` then 
+    
+    ```bash
+    podman run -d -p 8081:8081 -e dbUser=admin -e dbPassword=admin -e dbName=transit -e ipAddress=<POSTGRES_IP_ADDRESS> -e port=5432 csv-api
+    ```
+
+    which will run the API on `localhost:8081`
 ## Getting Started
 
 This project is a starting point for a Flutter application that follows the
