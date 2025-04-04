@@ -33,7 +33,7 @@ class TimetablePage extends StatelessWidget {
                 'Day of Week',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               )),
-          for (var time in times) DataColumn(label: Text('')),
+          for (var _ in times) DataColumn(label: Text('')),
         ],
         rows: [
           for (var stop in stops)

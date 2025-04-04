@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'pages/real_time_info_page.dart';
 import 'pages/timetable_page.dart';
 import 'pages/routes_page.dart';
 import 'pages/fare_cost_page.dart';
-import 'package:http/http.dart' as http;
 
 // Replace the strings here with your own API endpoints
 
