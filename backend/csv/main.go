@@ -18,14 +18,13 @@ var (
 	dbPassword string
 	dbName     string
 	ipAddress  string
-	port  	   string
+	port       string
 )
 
 func main() {
 	// Load environment variables from ldflags
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, ipAddress, port, dbName)
 
-	// Connect to the database
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
@@ -34,178 +33,25 @@ func main() {
 	}
 	defer db.Close()
 
-	// Verify the connection
 	if err := db.Ping(); err != nil {
 		fmt.Println("Error pinging the database:", err)
 		os.Exit(1)
 	}
 
-	// Initialize the Gin router
 	router := gin.Default()
 
-	// Routes
-	router.GET("/stops/:stop_id", getStopDetails)
-	router.GET("/stops/:stop_id/next", getNextDepartures)
-	router.GET("/trips/:trip_id", getTripDetails)
-	router.GET("/nearestStops", getNearestStops)
-	router.GET("/stops", getStops)
-	router.GET("/routes", getRoutes)
+	router.GET("/nearestStops", getNearestStopsandDepartures)
+	router.GET("/stops", getStopsAndDepartures)
 
-	// Start the server
 	router.Run(":8081")
 }
 
-// Handler to get details of a specific stop
-func getStopDetails(c *gin.Context) {
-	stopID := c.Param("stop_id")
-
-	// Query the database
-	rows, err := db.Query("SELECT * FROM stops WHERE stop_id = $1", stopID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
-	}
-	defer rows.Close()
-
-	// Process results
-	var results []map[string]interface{}
-	for rows.Next() {
-		var tripID, stopID, stopHeadSign sql.NullString
-		var arrivalTime, departureTime sql.NullString
-		var stopSequence, pickupType, dropOffType, timePoint sql.NullInt32
-
-		err = rows.Scan(&tripID, &arrivalTime, &departureTime, &stopID, &stopSequence, &stopHeadSign, &pickupType, &dropOffType, &timePoint)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
-			return
-		}
-
-		results = append(results, gin.H{
-			"trip_id":        tripID,
-			"stop_id":        stopID,
-			"arrival_time":   arrivalTime,
-			"departure_time": departureTime,
-			"stop_sequence":  stopSequence,
-			"stop_headsign":  stopHeadSign,
-			"pickup_type":    pickupType,
-			"drop_off_type":  dropOffType,
-			"time_point":     timePoint,
-		})
-	}
-
-	c.JSON(http.StatusOK, results)
-}
-
-// Handler to get the next departures for a specific stop
-func getNextDepartures(c *gin.Context) {
-	stopID := c.Param("stop_id")
-
-	// Get the current date and day of the week
-	currentDate := time.Now().Format("2006-01-02")
-	currentDayOfWeek := time.Now().Weekday().String()
-
-	// Map Go's weekday to the column names in the calendar table
-	dayOfWeekMap := map[string]string{
-		"Sunday":    "sunday",
-		"Monday":    "monday",
-		"Tuesday":   "tuesday",
-		"Wednesday": "wednesday",
-		"Thursday":  "thursday",
-		"Friday":    "friday",
-		"Saturday":  "saturday",
-	}
-
-	dayOfWeekColumn := dayOfWeekMap[currentDayOfWeek]
-
-	rows, err := db.Query(`
-		SELECT s.* FROM stop_times s
-		JOIN trips t ON s.trip_id = t.trip_id
-		JOIN calendar c ON t.service_id = c.service_id
-		WHERE s.stop_id = $1 
-		AND s.departure_time >= CURRENT_TIME
-		AND c.`+dayOfWeekColumn+` = 1
-		AND c.start_date <= $2
-		AND c.end_date >= $2
-		ORDER BY s.departure_time ASC 
-		LIMIT 8
-	`, stopID, currentDate)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
-	}
-	defer rows.Close()
-
-	// Process results
-	var results []map[string]interface{}
-	for rows.Next() {
-		var tripID, stopID, stopHeadSign sql.NullString
-		var arrivalTime, departureTime sql.NullString
-		var stopSequence, pickupType, dropOffType, timePoint sql.NullInt32
-
-		err = rows.Scan(&tripID, &arrivalTime, &departureTime, &stopID, &stopSequence, &stopHeadSign, &pickupType, &dropOffType, &timePoint)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
-			return
-		}
-
-		results = append(results, gin.H{
-			"trip_id":        tripID,
-			"stop_id":        stopID,
-			"arrival_time":   arrivalTime,
-			"departure_time": departureTime,
-			"stop_sequence":  stopSequence,
-			"stop_headsign":  stopHeadSign,
-			"pickup_type":    pickupType,
-			"drop_off_type":  dropOffType,
-			"time_point":     timePoint,
-		})
-	}
-
-	c.JSON(http.StatusOK, results)
-}
-
-// Handler to get details of a specific trip
-func getTripDetails(c *gin.Context) {
-	tripID := c.Param("trip_id")
-
-	row := db.QueryRow("SELECT * FROM trips WHERE trip_id = $1", tripID)
-
-	var routeID, serviceID, tripIDStr, tripHeadSign, tripShortName, blockID, shapeID sql.NullString
-	var directionID sql.NullInt32
-
-	err := row.Scan(&routeID, &serviceID, &tripIDStr, &tripHeadSign, &tripShortName, &directionID, &blockID, &shapeID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Trip not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"route_id":        routeID,
-		"service_id":      serviceID,
-		"trip_id":         tripIDStr,
-		"trip_headsign":   tripHeadSign,
-		"trip_short_name": tripShortName,
-		"direction_id":    directionID,
-		"block_id":        blockID,
-		"shape_id":        shapeID,
-	})
-}
-
-// Handler to get eight stops based on user query
-func getStops(c *gin.Context) {
-	query := c.Query("query")
+func getStops(query string) ([]map[string]interface{}, error){
 
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "query is required to not be empty"})
-		return
+		return nil, fmt.Errorf("error: Query is required to not be empty")
 	}
 
-	// Query stops db with search query and return first 8 stops in query result
 	rows, err := db.Query(`
 		SELECT stop_id, stop_name
 		FROM stops
@@ -214,116 +60,205 @@ func getStops(c *gin.Context) {
 	`, "%"+query+"%")
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
+		return nil, fmt.Errorf("Error querying database: " + err.Error())
 	}
-	defer rows.Close()
 
-	// Process results
 	var results []map[string]interface{}
 	for rows.Next() {
 		var stopID, stopName sql.NullString
-
-		err = rows.Scan(&stopID, &stopName)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
-			return
+		if err := rows.Scan(&stopID, &stopName); err != nil {
+			return nil, fmt.Errorf("error scanning stop row: %w", err)
 		}
 
 		results = append(results, gin.H{
 			"stop_id":   stopID,
 			"stop_name": stopName,
+			"trips":     []interface{}{},
 		})
 	}
+	defer rows.Close()
+	return results, nil
 
-	c.JSON(http.StatusOK, results)
 }
 
-// Handler to get the eight nearest stops to the user's location
-func getNearestStops(c *gin.Context) {
-	userLat := c.Query("lat")
-	userLng := c.Query("lng")
+func getStopsAndDepartures(c * gin.Context) {
+	query := c.Query("query")
 
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query is required to not be empty"})
+		return
+	}
+
+	stops, err := getStops(query)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	currentDate, now, dayOfWeekColumn := getCurrentDateAndTimeInfo()
+
+	for i, stop := range stops {
+		stopID := stop["stop_id"]
+		trips, err := getUpcomingTripsForStop(stopID, currentDate, now, dayOfWeekColumn)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		stops[i]["trips"] = trips
+	}
+
+	c.JSON(http.StatusOK, stops)
+}
+
+func getNearestStopsandDepartures(c *gin.Context) {
+	userLat, userLng := c.Query("lat"), c.Query("lng")
 	if userLat == "" || userLng == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Latitude and longitude are required"})
 		return
 	}
 
+	stops, err := getNearestStops(userLat, userLng)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	currentDate, now, dayOfWeekColumn := getCurrentDateAndTimeInfo()
+
+	for i, stop := range stops {
+		stopID := stop["stop_id"]
+		trips, err := getUpcomingTripsForStop(stopID, currentDate, now, dayOfWeekColumn)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		stops[i]["trips"] = trips
+	}
+
+	c.JSON(http.StatusOK, stops)
+}
+
+func getNearestStops(lat, lng string) ([]map[string]interface{}, error) {
 	rows, err := db.Query(`
 		SELECT stop_id, stop_name, stop_lat, stop_lon,
-			   ( 6371000 * acos(
-				   cos(radians($1)) * cos(radians(stop_lat)) *
-				   cos(radians(stop_lon) - radians($2)) +
-				   sin(radians($1)) * sin(radians(stop_lat))
-				 )
-			   ) AS distance
+			(6371000 * acos(
+				cos(radians($1)) * cos(radians(stop_lat)) *
+				cos(radians(stop_lon) - radians($2)) +
+				sin(radians($1)) * sin(radians(stop_lat))
+			)) AS distance
 		FROM stops
 		ORDER BY distance
-		LIMIT 8
-	`, userLat, userLng)
-
+		LIMIT 8`, lat, lng)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
+		return nil, fmt.Errorf("error querying nearest stops: %w", err)
 	}
 	defer rows.Close()
 
-	// Process results
 	var results []map[string]interface{}
 	for rows.Next() {
 		var stopID, stopName sql.NullString
-		var latitude, longitude sql.NullFloat64
-		var distance sql.NullFloat64
-
-		err = rows.Scan(&stopID, &stopName, &latitude, &longitude, &distance)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
-			return
+		var lat, lon, dist sql.NullFloat64
+		if err := rows.Scan(&stopID, &stopName, &lat, &lon, &dist); err != nil {
+			return nil, fmt.Errorf("error scanning stop row: %w", err)
 		}
-
-		// convert distance from float64 to int
-		distanceInt := int(distance.Float64)
 
 		results = append(results, gin.H{
 			"stop_id":   stopID,
 			"stop_name": stopName,
-			"latitude":  latitude,
-			"longitude": longitude,
-			"distance":  distanceInt,
+			"latitude":  lat,
+			"longitude": lon,
+			"distance":  int(dist.Float64),
+			"trips":     []interface{}{},
 		})
 	}
-
-	c.JSON(http.StatusOK, results)
+	return results, nil
 }
 
-func getRoutes(c *gin.Context) {
-	rows, err := db.Query(`SELECT * FROM routes`)
+func getCurrentDateAndTimeInfo() (string, string, string) {
+	loc, _ := time.LoadLocation("Europe/Dublin")
+	nowTime := time.Now().In(loc)
+	currentDate := nowTime.Format("2006-01-02")
+	currentTime := nowTime.Format("15:04:05")
+
+	dayOfWeek := nowTime.Weekday().String()
+	dayOfWeekMap := map[string]string{
+		"Sunday": "sunday", "Monday": "monday", "Tuesday": "tuesday",
+		"Wednesday": "wednesday", "Thursday": "thursday",
+		"Friday": "friday", "Saturday": "saturday",
+	}
+	return currentDate, currentTime, dayOfWeekMap[dayOfWeek]
+}
+
+func getUpcomingTripsForStop(stopID interface{}, currentDate, currentTime, dayColumn string) ([]interface{}, error) {
+	query := fmt.Sprintf(`
+		SELECT s.* FROM stop_times s
+		JOIN trips t ON s.trip_id = t.trip_id
+		JOIN calendar c ON t.service_id = c.service_id
+		WHERE s.stop_id = $1
+		AND s.departure_time >= $2
+		AND c.%s = 1
+		AND c.start_date <= $3
+		AND c.end_date >= $3
+		ORDER BY s.departure_time ASC 
+		LIMIT 8`, dayColumn)
+
+	rows, err := db.Query(query, stopID, currentTime, currentDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error querying database: " + err.Error()})
-		return
+		return nil, fmt.Errorf("error querying upcoming trips: %w", err)
 	}
 	defer rows.Close()
 
-	// Process results
-	var results []map[string]interface{}
+	var trips []interface{}
 	for rows.Next() {
-		var routeId, agencyId, routeShortName, routeLongName, routeDesc, routeType, routeUrl, routeColor, routeTextColor sql.NullString
-		err = rows.Scan(&routeId, &agencyId, &routeShortName, &routeLongName, &routeDesc, &routeType, &routeUrl, &routeColor, &routeTextColor)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning database rows: " + err.Error()})
-			return
+		var tripID, stopID, stopHeadSign sql.NullString
+		var arrivalTime, departureTime sql.NullString
+		var stopSeq, pickup, dropoff, timepoint sql.NullInt32
+
+		if err := rows.Scan(&tripID, &arrivalTime, &departureTime, &stopID, &stopSeq, &stopHeadSign, &pickup, &dropoff, &timepoint); err != nil {
+			return nil, fmt.Errorf("error scanning stop_time row: %w", err)
 		}
-		results = append(results, gin.H{
-			"route_id":         routeId,
-			"agency_id":        agencyId,
-			"route_short_name": routeShortName,
-			"route_long_name":  routeLongName,
-			"route_desc":       routeDesc,
-			"route_type":       routeType,
-			"route_color":      routeColor,
-			"route_url":        routeUrl,
-			"route_text_color": routeTextColor,
+
+		routeName, err := getRouteShortNameForTrip(tripID)
+		if err != nil {
+			return nil, err
+		}
+
+		trips = append(trips, gin.H{
+			"trip_id":          tripID,
+			"arrival_time":     arrivalTime,
+			"departure_time":   departureTime,
+			"stop_sequence":    stopSeq,
+			"stop_headsign":    stopHeadSign,
+			"pickup_type":      pickup,
+			"drop_off_type":    dropoff,
+			"time_point":       timepoint,
+			"route_short_name": routeName,
 		})
 	}
-	c.JSON(http.StatusOK, results)
+	if trips == nil {
+		return []interface{}{}, nil
+	}
+	return trips, nil
+}
+
+func getRouteShortNameForTrip(tripID sql.NullString) (sql.NullString, error) {
+	var routeID sql.NullString
+	row := db.QueryRow("SELECT route_id FROM trips WHERE trip_id = $1", tripID)
+	if err := row.Scan(&routeID); err != nil {
+		if err == sql.ErrNoRows {
+			return sql.NullString{}, fmt.Errorf("trip not found")
+		}
+		return sql.NullString{}, fmt.Errorf("error fetching trip: %w", err)
+	}
+
+	var routeShortName sql.NullString
+	row = db.QueryRow("SELECT route_short_name FROM routes WHERE route_id = $1", routeID)
+	if err := row.Scan(&routeShortName); err != nil {
+		if err == sql.ErrNoRows {
+			return sql.NullString{}, fmt.Errorf("route not found")
+		}
+		return sql.NullString{}, fmt.Errorf("error fetching route: %w", err)
+	}
+	return routeShortName, nil
 }

@@ -20,17 +20,16 @@ class LocationDisplay extends StatefulWidget {
 class LocationDisplayState extends State<LocationDisplay> {
 
   late Timer _timer;
-  late Future<List<ListTile>> _stopTilesFuture;
+  late Future<List<ListTile>> _stopTilesFuture = parseStops();
 
   @override
   void initState() {
     super.initState();
-    _stopTilesFuture = parseStops();
-    _timer = Timer.periodic(const Duration(seconds: 20), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 60), (timer) {
       setState(() {
         _stopTilesFuture = parseStops();
       });
-    });
+      });
   }
 
   @override
@@ -40,15 +39,6 @@ class LocationDisplayState extends State<LocationDisplay> {
   }
 
   Future<List<ListTile>> parseStops() async {
-    final routeResponse = await http.get(Uri.parse('${widget.apiBaseUrl2}/routes'));
-    Map<String,String> routeMap = {};
-    if (routeResponse.statusCode == 200) {
-      final List<dynamic> rawData = jsonDecode(routeResponse.body);
-      for (var route in rawData) {
-        routeMap[route["route_id"]["String"]] = route["route_short_name"]["String"];
-      }
-    }
-    final gtfsData = await rti.fetchGtfsData(widget.apiBaseUrl1);
     final Position userLocation = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.best,
@@ -65,9 +55,22 @@ class LocationDisplayState extends State<LocationDisplay> {
         return {
           "stop_id": stop["stop_id"]["String"],
           "stop_name": stop["stop_name"]["String"],
-          "latitude": stop["latitude"]["String"],
-          "longitude": stop["longitude"]["String"],
+          "latitude": stop["latitude"]["Float64"],
+          "longitude": stop["longitude"]["Float64"],
           "distance": stop["distance"],
+          "trips": stop["trips"].map<Map<String, dynamic>>((trip){
+            return {
+               "arrival_time": trip["arrival_time"]["String"],
+              "departure_time": trip["departure_time"]["String"],
+              "drop_off_type": trip["drop_off_type"]["Int32"],
+              "pickup_type": trip["pickup_type"]["Int32"],
+              "route_short_name": trip["route_short_name"]["String"],
+              "stop_headsign": trip["stop_headsign"]["String"],
+              "stop_sequence": trip["stop_sequence"]["Int32"],
+              "time_point": trip["time_point"]["Int32"],
+              "trip_id": trip["trip_id"]["String"],
+              };
+          }).toList()
         };
       }).toList();
     } else {
@@ -75,7 +78,7 @@ class LocationDisplayState extends State<LocationDisplay> {
     }
 
     List<ListTile> stopTiles = await Future.wait(nearestStops.map((stop) async {
-      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData, widget.apiBaseUrl2);
+      final nextDepartures = stop["trips"];
       return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Adjust padding if needed
         title: Card(
@@ -169,8 +172,10 @@ class LocationDisplayState extends State<LocationDisplay> {
           return FutureBuilder<List<ListTile>>(
             future: _stopTilesFuture, // Routes can be passed if needed
             builder: (BuildContext context, AsyncSnapshot<List<ListTile>> listTileSnapshot) {
-              if (listTileSnapshot.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
+                if (listTileSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
               } else if (listTileSnapshot.hasError) {
                 return Text('Error: ${listTileSnapshot.error}');
               } else if (listTileSnapshot.hasData) {

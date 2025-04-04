@@ -1,14 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'pages/real_time_info_page.dart';
 import 'pages/timetable_page.dart';
 import 'pages/routes_page.dart';
 import 'pages/fare_cost_page.dart';
+import 'package:http/http.dart' as http;
 
 // Replace the strings here with your own API endpoints
 
-const String apiBaseUrl1 = 'http://192.168.68.113:8080'; // gtfsr endpoint
-const String apiBaseUrl2 = 'http://192.168.68.113:8081'; // csv endpoint
+const String apiBaseUrl1 = 'http://54.90.195.4:8080'; // gtfsr endpoint
+const String apiBaseUrl2 = 'http://54.90.195.4:8081'; // csv endpoint
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _pages = <Widget>[
-      RealTimeInfoPage(apiBaseUrl1: widget.apiBaseUrl1, apiBaseUrl2: widget.apiBaseUrl2),
+      const RealTimeInfoPage(apiBaseUrl1: apiBaseUrl1, apiBaseUrl2: apiBaseUrl2),
       const TimetablePage(),
       const RoutesPage(),
       const FareCostPage(),

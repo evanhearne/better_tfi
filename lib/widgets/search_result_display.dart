@@ -12,19 +12,6 @@ class SearchResultDisplay extends StatelessWidget {
   const SearchResultDisplay({super.key, required this.searchQuery, required this.apiBaseUrl1, required this.apiBaseUrl2});
 
   Future<List<ListTile>> parseStops(BuildContext context, String searchQuery) async {
-    final routeResponse = await http.get(Uri.parse('$apiBaseUrl2/routes'));
-    
-    Map<String,String> routeMap = {};
-    
-    if (routeResponse.statusCode == 200) {
-      final List<dynamic> rawData = jsonDecode(routeResponse.body);
-      for (var route in rawData) {
-        routeMap[route["route_id"]["String"]] = route["route_short_name"]["String"];
-      }
-    }
-
-    final gtfsData = await rti.fetchGtfsData(apiBaseUrl1);
-
     final response = await http.get(Uri.parse('$apiBaseUrl2/stops?query=$searchQuery'));
 
     if (response.body == 'null') {
@@ -43,6 +30,19 @@ class SearchResultDisplay extends StatelessWidget {
         return {
           "stop_id": stop["stop_id"]["String"],
           "stop_name": stop["stop_name"]["String"],
+          "trips": stop["trips"].map<Map<String, dynamic>>((trip){
+            return {
+               "arrival_time": trip["arrival_time"]["String"],
+              "departure_time": trip["departure_time"]["String"],
+              "drop_off_type": trip["drop_off_type"]["Int32"],
+              "pickup_type": trip["pickup_type"]["Int32"],
+              "route_short_name": trip["route_short_name"]["String"],
+              "stop_headsign": trip["stop_headsign"]["String"],
+              "stop_sequence": trip["stop_sequence"]["Int32"],
+              "time_point": trip["time_point"]["Int32"],
+              "trip_id": trip["trip_id"]["String"],
+              };
+          }).toList()
         };
       }).toList();
     } else {
@@ -50,7 +50,7 @@ class SearchResultDisplay extends StatelessWidget {
     }
 
     List<ListTile> stopTiles = await Future.wait(stops.map((stop) async {
-      final nextDepartures = await rti.fetchNextDepartures(stop["stop_id"], routeMap, gtfsData, apiBaseUrl2);
+      final nextDepartures = stop["trips"];
       return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Adjust padding if needed
         title: Card(
