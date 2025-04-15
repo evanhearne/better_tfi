@@ -61,6 +61,16 @@ func getTimetable(c * gin.Context) () {
 		return
 	}
 
+	// Initialize timetable structure
+	timetables := map[string]map[string]map[string]interface{}{}
+	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
+	for _, day := range days {
+		timetables[day] = map[string]map[string]interface{}{
+			"trips": {},
+		}
+	}
+
 	for _, trip := range(trips) {
 		serviceID, ok := trip["service_id"].(sql.NullString)
 		if !ok {
@@ -114,51 +124,13 @@ func getTimetable(c * gin.Context) () {
 		}
 		tripIDStr := tripID.String
 
-		stopTimes, err := getStopTimes(tripIDStr)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		for _, stopTime := range stopTimes {
-			stopID := stopTime["stop_id"]
-			stopIDStr, ok := stopID.(string)
-			if !ok {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "stopID is not a valid string"})
-				return
-			}
-			stop, err := getStop(stopIDStr)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			stopTime["stop_name"] = stop["stop_name"]
-		}
-	}
-
-	// Initialize timetable structure
-	timetables := map[string]map[string]map[string]interface{}{}
-	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-
-	for _, day := range days {
-		timetables[day] = map[string]map[string]interface{}{
-			"trips": {},
-		}
-	}
-
-	for _, trip := range trips {
 		day, ok := trip["day"].(string)
 		if !ok {
 			continue // or handle error
 		}
 
-		tripID, ok := trip["trip_id"].(sql.NullString)
-		if !ok || !tripID.Valid {
-			continue
-		}
+		stopTimes, err := getStopTimes(tripIDStr)
 
-		stopTimes, err := getStopTimes(tripID.String)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -168,13 +140,23 @@ func getTimetable(c * gin.Context) () {
 		var stopNames []string
 
 		for _, stopTime := range stopTimes {
+			stopID := stopTime["stop_id"]
+			stopIDStr, ok := stopID.(sql.NullString)
+			if !ok {
+				continue
+			}
+			stop, err := getStop(stopIDStr.String)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			stopTime["stop_name"] = stop["stop_name"]
+
 			// Handle arrival_time
 			arrivalTime, ok := stopTime["arrival_time"].(sql.NullTime)
 			if ok && arrivalTime.Valid {
 				arrivalTimes = append(arrivalTimes, arrivalTime.Time.Format("15:04:05"))
 			}
-
-			// TODO bring these queries up to the previous to reduce querying + ensure stopTime is using the appended stop_name from above
 
 			// Handle stop_name
 			stopName, ok := stopTime["stop_name"].(sql.NullString)
@@ -186,8 +168,8 @@ func getTimetable(c * gin.Context) () {
 		timetables[day]["trips"][tripID.String] = map[string]interface{}{
 			"arrival_times": arrivalTimes,
 			"stop_names":    stopNames,
-			"start_date":    trip["start_date"],
-			"end_date":      trip["end_date"],
+			"start_date":    trip["start_date"].(sql.NullString).String,
+			"end_date":      trip["end_date"].(sql.NullString).String,
 		}
 	}
 
@@ -211,7 +193,7 @@ func getStop(stopID string) (map[string]interface{}, error) {
 		SELECT stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station
 		FROM stops
 		WHERE stop_id = $1
-	`, "%"+stopID+"%")
+	`, stopID)
 
 	if err != nil {
 		return nil, fmt.Errorf("error querying database: %w", err)
@@ -219,25 +201,28 @@ func getStop(stopID string) (map[string]interface{}, error) {
 
 	var result map[string]interface{}
 
-	var stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,parent_station sql.NullString
+	for row.Next() {
 
-	var location_type sql.NullInt64
+		var stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,parent_station sql.NullString
 
-	if err := row.Scan(&stop_id, &stop_code, &stop_name, &stop_desc, &stop_lat, &stop_lon, &zone_id, &stop_url, &location_type, &parent_station); err != nil {
-		return nil, fmt.Errorf("error scanning stop row: %w", err)
-	}
+		var location_type sql.NullInt64
 
-	result = gin.H{
-		"stop_id":stop_id,
-		"stop_code":stop_code,
-		"stop_name": stop_name,
-		"stop_desc":stop_desc,
-		"stop_lat":stop_lat,
-		"stop_lon":stop_lon,
-		"zone_id":zone_id,
-		"stop_url":stop_url,
-		"location_type":location_type,
-		"parent_station":parent_station,
+		if err := row.Scan(&stop_id, &stop_code, &stop_name, &stop_desc, &stop_lat, &stop_lon, &zone_id, &stop_url, &location_type, &parent_station); err != nil {
+			return nil, fmt.Errorf("error scanning stop row: %w", err)
+		}
+
+		result = gin.H{
+			"stop_id":stop_id,
+			"stop_code":stop_code,
+			"stop_name": stop_name,
+			"stop_desc":stop_desc,
+			"stop_lat":stop_lat,
+			"stop_lon":stop_lon,
+			"zone_id":zone_id,
+			"stop_url":stop_url,
+			"location_type":location_type,
+			"parent_station":parent_station,
+		}
 	}
 
 	defer row.Close()
@@ -254,7 +239,7 @@ func getStopTimes(tripID string) ([]map[string]interface{}, error) {
 		SELECT trip_id,arrival_time,departure_time,stop_id,stop_sequence,stop_headsign,pickup_type,drop_off_type,timepoint
 		FROM stop_times
 		WHERE trip_id = $1
-	`,"%"+tripID+"%")
+	`,tripID)
 
 	if err != nil {
 		return nil, fmt.Errorf("error querying database: %w", err)
