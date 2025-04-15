@@ -42,8 +42,332 @@ func main() {
 
 	router.GET("/nearestStops", getNearestStopsandDepartures)
 	router.GET("/stops", getStopsAndDepartures)
+	router.GET("/timetable", getTimetable)
 
 	router.Run(":8081")
+}
+
+func getTimetable(c * gin.Context) () {
+	routeID := c.Query("route_id")
+
+	if routeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "routeID is required to not be empty"})
+	}
+
+	trips, err := getTrips(routeID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, trip := range(trips) {
+		serviceID, ok := trip["service_id"].(sql.NullString)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "serviceID is not a valid string"})
+			return
+		}
+		if !serviceID.Valid {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "serviceID is not valid"})
+			return
+		}
+		calendar, err := getCalendar(serviceID.String)
+		
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		tripID, ok := trip["trip_id"].(sql.NullString)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "trip_id is not a valid sql.NullString"})
+			return
+		}
+		routeShortName, err := getRouteShortNameForTrip(tripID)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		trip["start_date"] = calendar["start_date"]
+		trip["end_date"] = calendar["end_date"]
+		trip["route_short_name"] = routeShortName
+
+		days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+		for _, day := range days {
+			calendar_day := calendar[day]
+			calendarDayStr, ok := calendar_day.(sql.NullString)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "calendar_day is not a valid string"})
+				return
+			}
+			if calendarDayStr.String == "1" {
+				trip["day"] = day
+				break
+			}
+		}
+
+		if !tripID.Valid {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "tripID is not valid"})
+			return
+		}
+		tripIDStr := tripID.String
+
+		stopTimes, err := getStopTimes(tripIDStr)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, stopTime := range stopTimes {
+			stopID := stopTime["stop_id"]
+			stopIDStr, ok := stopID.(string)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "stopID is not a valid string"})
+				return
+			}
+			stop, err := getStop(stopIDStr)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			stopTime["stop_name"] = stop["stop_name"]
+		}
+	}
+
+	// Initialize timetable structure
+	timetables := map[string]map[string]map[string]interface{}{}
+	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
+	for _, day := range days {
+		timetables[day] = map[string]map[string]interface{}{
+			"trips": {},
+		}
+	}
+
+	for _, trip := range trips {
+		day, ok := trip["day"].(string)
+		if !ok {
+			continue // or handle error
+		}
+
+		tripID, ok := trip["trip_id"].(sql.NullString)
+		if !ok || !tripID.Valid {
+			continue
+		}
+
+		stopTimes, err := getStopTimes(tripID.String)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		var arrivalTimes []string
+		var stopNames []string
+
+		for _, stopTime := range stopTimes {
+			// Handle arrival_time
+			arrivalTime, ok := stopTime["arrival_time"].(sql.NullTime)
+			if ok && arrivalTime.Valid {
+				arrivalTimes = append(arrivalTimes, arrivalTime.Time.Format("15:04:05"))
+			}
+
+			// TODO bring these queries up to the previous to reduce querying + ensure stopTime is using the appended stop_name from above
+
+			// Handle stop_name
+			stopName, ok := stopTime["stop_name"].(sql.NullString)
+			if ok && stopName.Valid {
+				stopNames = append(stopNames, stopName.String)
+			}
+		}
+
+		timetables[day]["trips"][tripID.String] = map[string]interface{}{
+			"arrival_times": arrivalTimes,
+			"stop_names":    stopNames,
+			"start_date":    trip["start_date"],
+			"end_date":      trip["end_date"],
+		}
+	}
+
+	// Return the complete timetable structure
+	c.JSON(
+		http.StatusOK,
+		gin.H{
+			"route_id":         routeID,
+			"route_short_name": trips[0]["route_short_name"].(sql.NullString).String,
+			"timetables":       timetables,
+		},
+	)
+}
+
+func getStop(stopID string) (map[string]interface{}, error) {
+	if stopID == "" {
+		return nil, fmt.Errorf("error: stopID is required to not be empty")
+	}
+
+	row, err := db.Query(`
+		SELECT stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station
+		FROM stops
+		WHERE stop_id = $1
+	`, "%"+stopID+"%")
+
+	if err != nil {
+		return nil, fmt.Errorf("error querying database: %w", err)
+	}
+
+	var result map[string]interface{}
+
+	var stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,parent_station sql.NullString
+
+	var location_type sql.NullInt64
+
+	if err := row.Scan(&stop_id, &stop_code, &stop_name, &stop_desc, &stop_lat, &stop_lon, &zone_id, &stop_url, &location_type, &parent_station); err != nil {
+		return nil, fmt.Errorf("error scanning stop row: %w", err)
+	}
+
+	result = gin.H{
+		"stop_id":stop_id,
+		"stop_code":stop_code,
+		"stop_name": stop_name,
+		"stop_desc":stop_desc,
+		"stop_lat":stop_lat,
+		"stop_lon":stop_lon,
+		"zone_id":zone_id,
+		"stop_url":stop_url,
+		"location_type":location_type,
+		"parent_station":parent_station,
+	}
+
+	defer row.Close()
+
+	return result, nil
+}
+
+func getStopTimes(tripID string) ([]map[string]interface{}, error) {
+	if tripID == "" {
+		return nil, fmt.Errorf("error: serviceID is required not to be empty")
+	}
+
+	rows, err := db.Query(`
+		SELECT trip_id,arrival_time,departure_time,stop_id,stop_sequence,stop_headsign,pickup_type,drop_off_type,timepoint
+		FROM stop_times
+		WHERE trip_id = $1
+	`,"%"+tripID+"%")
+
+	if err != nil {
+		return nil, fmt.Errorf("error querying database: %w", err)
+	}
+
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		var trip_id, stop_id, stop_headsign sql.NullString
+		var arrival_time, departure_time sql.NullTime
+		var pickup_type, drop_off_type, timepoint, stop_sequence sql.NullInt64
+
+		if err := rows.Scan(&trip_id, &arrival_time, &departure_time, &stop_id, &stop_sequence, &stop_headsign, &pickup_type, &drop_off_type, &timepoint); err != nil {
+			return nil, fmt.Errorf("error scanning stoptime row: %w", err)
+		}
+
+		results = append(results, gin.H{
+			"trip_id":trip_id,
+			"arrival_time":arrival_time,
+			"departure_time":departure_time,
+			"stop_id":stop_id,
+			"stop_sequence":stop_sequence,
+			"stop_headsign":stop_headsign,
+			"pickup_type":pickup_type,
+			"drop_off_type":drop_off_type,
+			"timepoint":timepoint,
+			"stop_name": "",
+		})
+	}
+	defer rows.Close()
+	return results, nil
+}
+
+func getCalendar(serviceID string) (map[string]interface{}, error) {
+	if serviceID == "" {
+		return nil, fmt.Errorf("error: serviceID is required not to be empty")
+	}
+
+	var result map[string]interface{}
+
+	row, err := db.Query(`
+		SELECT service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date
+		FROM calendar
+		WHERE service_id = $1
+	`, serviceID)
+
+	if err != nil {
+		return nil, fmt.Errorf("error querying database: %w", err)
+	}
+
+	for row.Next(){
+		var service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date sql.NullString
+
+	if err := row.Scan(&service_id, &monday, &tuesday, &wednesday, &thursday, &friday, &saturday, &sunday, &start_date, &end_date); err != nil {
+		return nil, fmt.Errorf("error scanning trip row: %w", err)
+	}
+
+	result = gin.H{
+		"service_id": service_id,
+		"monday": monday,
+		"tuesday": tuesday,
+		"wednesday": wednesday,
+		"thursday": thursday,
+		"friday": friday,
+		"saturday": saturday,
+		"sunday": sunday,
+		"start_date": start_date,
+		"end_date": end_date,
+	}}
+
+	defer row.Close()
+
+	return result, nil
+}
+
+func getTrips(routeID string) ([]map[string]interface{}, error) {
+	if routeID == "" {
+		return nil, fmt.Errorf("error: routeID is required not to be empty")
+	}
+
+	rows, err := db.Query(`
+		SELECT route_id, service_id, trip_id
+		FROM trips
+		WHERE route_id = $1
+	`, routeID)
+
+	if err != nil {
+		return nil, fmt.Errorf("Error querying database: " + err.Error())
+	}
+
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		var routeID, serviceID, tripID sql.NullString
+
+		if err := rows.Scan(&routeID, &serviceID, &tripID); err != nil {
+			return nil, fmt.Errorf("error scanning trip row: %w", err)
+		}
+
+		results = append(results, gin.H{
+			"route_id": routeID,
+			"service_id": serviceID,
+			"trip_id": tripID,
+			"day": "",
+			"start_date": "",
+			"end_date": "",
+			"route_short_name": "",
+		})
+	}
+
+	defer rows.Close()
+
+	return results, nil
 }
 
 func getStops(query string) ([]map[string]interface{}, error){
