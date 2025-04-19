@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -47,12 +48,28 @@ func main() {
 	router.Run(":8081")
 }
 
+func getCurrentDateFromDB() (time.Time, error) {
+	var currentDate time.Time
+	err := db.QueryRow("SELECT CURRENT_DATE").Scan(&currentDate)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("error getting current date from DB: %w", err)
+	}
+	return currentDate, nil
+}
+
 func getTimetable(c * gin.Context) () {
 	routeID := c.Query("route_id")
 
 	if routeID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "routeID is required to not be empty"})
 	}
+
+	currentDate, err := getCurrentDateFromDB()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not fetch current date from database"})
+		return
+	}
+
 
 	trips, err := getTrips(routeID)
 
@@ -61,14 +78,26 @@ func getTimetable(c * gin.Context) () {
 		return
 	}
 
-	// Initialize timetable structure
-	timetables := map[string]map[string]map[string]interface{}{}
-	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-
-	for _, day := range days {
-		timetables[day] = map[string]map[string]interface{}{
-			"trips": {},
-		}
+	
+	type TimetableTrip struct {
+		TripID      string   `json:"trip_id"`
+		ArrivalTimes []string `json:"arrival_times"`
+		StopNames    []string `json:"stop_names"`
+		StartDate    string   `json:"start_date"`
+		EndDate      string   `json:"end_date"`
+	}
+	
+	// Store ordered days
+	orderedDays := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+	
+	// Create final timetable structure using a slice
+	finalTimetables := make([]map[string]interface{}, 0)
+	
+	for _, day := range orderedDays {
+		finalTimetables = append(finalTimetables, map[string]interface{}{
+			"day":   day,
+			"trips": []TimetableTrip{},
+		})
 	}
 
 	for _, trip := range(trips) {
@@ -87,6 +116,21 @@ func getTimetable(c * gin.Context) () {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		startDateRaw, ok := calendar["start_date"].(sql.NullTime)
+		endDateRaw, ok2 := calendar["end_date"].(sql.NullTime)
+
+		if !ok || !ok2 || !startDateRaw.Valid || !endDateRaw.Valid {
+			continue // Skip if either date is missing or null
+		}
+
+		startDate := startDateRaw.Time
+		endDate := endDateRaw.Time
+
+		if currentDate.Before(startDate) || currentDate.After(endDate) {
+			continue // Skip trips outside valid range
+		}
+
 
 		tripID, ok := trip["trip_id"].(sql.NullString)
 		if !ok {
@@ -163,25 +207,44 @@ func getTimetable(c * gin.Context) () {
 			if ok && stopName.Valid {
 				stopNames = append(stopNames, stopName.String)
 			}
+		}	
+
+		// Find the day entry in finalTimetables
+		for i, entry := range finalTimetables {
+			if entry["day"] == day {
+				trip := TimetableTrip{
+					TripID:       tripID.String,
+					ArrivalTimes: arrivalTimes,
+					StopNames:    stopNames,
+					StartDate:    trip["start_date"].(sql.NullTime).Time.String(),
+					EndDate:      trip["end_date"].(sql.NullTime).Time.String(),
+				}
+				entry["trips"] = append(entry["trips"].([]TimetableTrip), trip)
+				finalTimetables[i] = entry
+				break
+			}
+		}
+		// Sort each day's trips by the first arrival time
+		for i, entry := range finalTimetables {
+			trips := entry["trips"].([]TimetableTrip)
+			sort.Slice(trips, func(i, j int) bool {
+				if len(trips[i].ArrivalTimes) == 0 || len(trips[j].ArrivalTimes) == 0 {
+					return false
+				}
+				return trips[i].ArrivalTimes[0] < trips[j].ArrivalTimes[0]
+			})
+			entry["trips"] = trips
+			finalTimetables[i] = entry
 		}
 
-		timetables[day]["trips"][tripID.String] = map[string]interface{}{
-			"arrival_times": arrivalTimes,
-			"stop_names":    stopNames,
-			"start_date":    trip["start_date"].(sql.NullString).String,
-			"end_date":      trip["end_date"].(sql.NullString).String,
-		}
 	}
 
-	// Return the complete timetable structure
-	c.JSON(
-		http.StatusOK,
-		gin.H{
-			"route_id":         routeID,
-			"route_short_name": trips[0]["route_short_name"].(sql.NullString).String,
-			"timetables":       timetables,
-		},
-	)
+	c.JSON(http.StatusOK, gin.H{
+		"route_id":         routeID,
+		"route_short_name": trips[0]["route_short_name"].(sql.NullString).String,
+		"timetables":       finalTimetables,
+	})
+	
 }
 
 func getStop(stopID string) (map[string]interface{}, error) {
@@ -291,7 +354,8 @@ func getCalendar(serviceID string) (map[string]interface{}, error) {
 	}
 
 	for row.Next(){
-		var service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date sql.NullString
+		var service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday sql.NullString
+		var start_date, end_date sql.NullTime
 
 	if err := row.Scan(&service_id, &monday, &tuesday, &wednesday, &thursday, &friday, &saturday, &sunday, &start_date, &end_date); err != nil {
 		return nil, fmt.Errorf("error scanning trip row: %w", err)
