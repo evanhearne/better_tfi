@@ -6,9 +6,11 @@ An open-source alternative application to TFI Live, using the people's voice to 
 
 BetterTFI is an open source alternative dedicated to meeting the needs of the people of Ireland for an application to navigate public transport. Its main aims, from survey results, is to have minimal and easy to use features that allow the app to be performant when the user needs to navigate public transportation. 
 
-The app works by using Flutter, a cross-platform application development framework, and Go.
+The app works by using Flutter, a cross-platform application development framework, PostgreSQL, and Go.
 
 Flutter is an open-source cross-platform development tool being used within this project to create the application itself. 
+
+PostgreSQL is an open-source SQL database which is being used to parse GTFS data. The data is quite large (500+ MB CSVs) so a database is required to effectively parse and retrieve data.
 
 Go is a programming language which is being used for the backend component of the application. 
 
@@ -23,6 +25,12 @@ As is currently stands, there is no open source implementation of a navigation a
 This may be an employee/student who needs to commute, or a casual user wishing to spend the day in a new city. Users who can view the source code of a project can suggest new features or point out bugs that developers failed to catch, or even suggest fixes/new features through a PR.
 
 As an alternative to TFI Live, users can have more choice within the market, and more choice can often lead to better results! 
+
+## Features
+ + **Real Time Info** : Use geo-location or search to find bus stops and their next departures.
+ + **Timetable (in progress)** : Use search to find and save timetables for the routes you use.
+
+ (Screenshots to come later...)
 
 ## How to work with project
 
@@ -79,7 +87,7 @@ which will run the API on `localhost:8080` .
     postgres-transit
     ```
 
-2. From `backend/csv` directory run `go run -ldflags "-X main.dbUser=admin -X main.dbPassword=admin -X main.dbName=transit" main.go` which will run the API on `localhost:8081` . 
+2. From `backend/csv` directory run `go run -ldflags "-X main.dbUser=admin -X main.dbPassword=admin -X main.dbName=transit -X main.ipAddress=<POSTGRES_IP_ADDRESS> -X main.port=5432" main.go` which will run the API on `localhost:8081` . 
 
 3. Alternatively from `backend/csv` run `podman build -t csv-api .` then 
     
