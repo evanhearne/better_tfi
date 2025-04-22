@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 	"sort"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -44,6 +44,7 @@ func main() {
 	router.GET("/nearestStops", getNearestStopsandDepartures)
 	router.GET("/stops", getStopsAndDepartures)
 	router.GET("/timetable", getTimetable)
+	router.GET("/routes", getRoutes)
 
 	router.Run(":8081")
 }
@@ -57,11 +58,56 @@ func getCurrentDateFromDB() (time.Time, error) {
 	return currentDate, nil
 }
 
+func getRoutes(c * gin.Context) () {
+	searchQuery := c.Query("search_query")
+
+	if searchQuery == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "searchQuery is required not to be empty"})
+	}
+
+	rows, err := db.Query(
+		`SELECT route_id, route_short_name, route_long_name 
+		FROM routes
+		WHERE route_long_name ILIKE '%' || $1 || '%'
+		OR route_short_name ILIKE '%' || $1 || '%'`, searchQuery)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "error querying routes"})
+		return
+	}
+
+	defer rows.Close()
+
+	var routes []map[string]interface{}
+	for rows.Next() {
+		var routeID, routeShortName, routeLongName sql.NullString
+		if err := rows.Scan(&routeID ,&routeShortName, &routeLongName); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error scanning route row"})
+			return
+		}
+
+		routes = append(routes, gin.H{
+			"route_id": routeID.String,
+			"route_short_name": routeShortName.String,
+			"route_long_name":  routeLongName.String,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"routes": routes})
+}
+
 func getTimetable(c * gin.Context) () {
 	routeID := c.Query("route_id")
 
 	if routeID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "routeID is required to not be empty"})
+	}
+
+	routeShortName, err := getRouteShortNameforRoute(routeID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not fetch route short name from database"})
+		return
 	}
 
 	currentDate, err := getCurrentDateFromDB()
@@ -236,12 +282,11 @@ func getTimetable(c * gin.Context) () {
 			entry["trips"] = trips
 			finalTimetables[i] = entry
 		}
-
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"route_id":         routeID,
-		"route_short_name": trips[0]["route_short_name"].(sql.NullString).String,
+		"route_short_name": routeShortName.String,
 		"timetables":       finalTimetables,
 	})
 	
@@ -387,7 +432,8 @@ func getTrips(routeID string) ([]map[string]interface{}, error) {
 	rows, err := db.Query(`
 		SELECT route_id, service_id, trip_id
 		FROM trips
-		WHERE route_id = $1
+		WHERE route_id = $1 
+		AND direction_id = 0
 	`, routeID)
 
 	if err != nil {
@@ -627,6 +673,19 @@ func getRouteShortNameForTrip(tripID sql.NullString) (sql.NullString, error) {
 
 	var routeShortName sql.NullString
 	row = db.QueryRow("SELECT route_short_name FROM routes WHERE route_id = $1", routeID)
+	if err := row.Scan(&routeShortName); err != nil {
+		if err == sql.ErrNoRows {
+			return sql.NullString{}, fmt.Errorf("route not found")
+		}
+		return sql.NullString{}, fmt.Errorf("error fetching route: %w", err)
+	}
+
+	return routeShortName, nil
+}
+
+func getRouteShortNameforRoute(routeID string) (sql.NullString, error) {
+	var routeShortName sql.NullString
+	row := db.QueryRow("SELECT route_short_name FROM routes WHERE route_id = $1", routeID)
 	if err := row.Scan(&routeShortName); err != nil {
 		if err == sql.ErrNoRows {
 			return sql.NullString{}, fmt.Errorf("route not found")

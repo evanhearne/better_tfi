@@ -7,8 +7,8 @@ import 'pages/fare_cost_page.dart';
 
 // Replace the strings here with your own API endpoints
 
-const String apiBaseUrl1 = 'http://54.90.195.4:8080'; // gtfsr endpoint
-const String apiBaseUrl2 = 'http://54.90.195.4:8081'; // csv endpoint
+const String apiBaseUrl1 = 'http://192.168.68.113:8080'; // gtfsr endpoint
+const String apiBaseUrl2 = 'http://192.168.68.113:8081'; // csv endpoint
 
 
 void main() async {
@@ -63,7 +63,7 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     _pages = <Widget>[
       const RealTimeInfoPage(apiBaseUrl1: apiBaseUrl1, apiBaseUrl2: apiBaseUrl2),
-      const TimetablePage(),
+      const TimetablePage(apiBaseUrl2: apiBaseUrl2,),
       const RoutesPage(),
       const FareCostPage(),
     ];
