@@ -20,7 +20,6 @@ class TimetableDisplay extends StatelessWidget {
         } else if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         } else {
-          var routeName = timetable['route_short_name'];
           var timetables = timetable['timetables'];
 
             final PageController pageController = PageController();

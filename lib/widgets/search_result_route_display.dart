@@ -10,11 +10,11 @@ class SearchResultRouteDisplay extends StatefulWidget {
   const SearchResultRouteDisplay({super.key, required this.apiBaseUrl2, required this.searchQuery});
 
   @override
-  _SearchResultRouteDisplayState createState() =>
-      _SearchResultRouteDisplayState();
+  SearchResultRouteDisplayState createState() =>
+      SearchResultRouteDisplayState();
 }
 
-class _SearchResultRouteDisplayState extends State<SearchResultRouteDisplay> {
+class SearchResultRouteDisplayState extends State<SearchResultRouteDisplay> {
   late Future<List<RouteInfo>> _routes;
 
   @override
@@ -102,7 +102,6 @@ class _SearchResultRouteDisplayState extends State<SearchResultRouteDisplay> {
                         } else if (!snapshot.hasData) {
                           return Center(child: Text('No timetable available'));
                         } else {
-                          print(route.routeID);
                           return TimetableDisplay(timetable: snapshot.data!);
                         }
                       },
