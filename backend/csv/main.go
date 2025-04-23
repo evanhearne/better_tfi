@@ -173,8 +173,22 @@ func getTimetable(c * gin.Context) () {
 		startDate := startDateRaw.Time
 		endDate := endDateRaw.Time
 
-		if currentDate.Before(startDate) || currentDate.After(endDate) {
-			continue // Skip trips outside valid range
+		var serviceWeek []time.Time
+		for i := 0; i < 7; i++ {
+			serviceWeek = append(serviceWeek, currentDate.AddDate(0, 0, i))
+		}
+
+		// Check if the service is valid for this service week
+		isValidService := false
+		for _, date := range serviceWeek {
+			if date.After(startDate) && date.Before(endDate) || date.Equal(startDate) || date.Equal(endDate) {
+				isValidService = true
+				break
+			}
+		}
+
+		if !isValidService {
+			continue // Skip this trip if the service is not valid for the current week
 		}
 
 
