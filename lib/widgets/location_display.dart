@@ -20,16 +20,32 @@ class LocationDisplay extends StatefulWidget {
 class LocationDisplayState extends State<LocationDisplay> {
 
   late Timer _timer;
-  late Future<List<ListTile>> _stopTilesFuture = parseStops();
+  late Position _cachedPosition;
+  late Future<List<ListTile>> _stopTilesFuture;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 60), (timer) {
+    // Kick off the very first fetch (position + stops)
+    _stopTilesFuture = _fetchStopsOnce();
+    // And then every 15s just re-use the cached position…
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
       setState(() {
-        _stopTilesFuture = parseStops();
+        _stopTilesFuture = parseStops(_cachedPosition);
       });
-      });
+    });
+  }
+
+  Future<List<ListTile>> _fetchStopsOnce() async {
+    // get and cache the position
+    _cachedPosition = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 10,
+      ),
+    );
+    // fetch stops for it
+    return parseStops(_cachedPosition);
   }
 
   @override
@@ -38,13 +54,8 @@ class LocationDisplayState extends State<LocationDisplay> {
     super.dispose();
   }
 
-  Future<List<ListTile>> parseStops() async {
-    final Position userLocation = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 10,
-      ),
-    );
+  Future<List<ListTile>> parseStops(Position _cachedPosition) async {
+    final Position userLocation = _cachedPosition;
 
     final response = await http.get(Uri.parse('${widget.apiBaseUrl2}/nearestStops?lat=${userLocation.latitude}&lng=${userLocation.longitude}'));
     List<Map<String, dynamic>> nearestStops = [];
@@ -156,40 +167,17 @@ class LocationDisplayState extends State<LocationDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Position>(
-      future: Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best,
-          distanceFilter: 10,
-        ),
-      ),
-      builder: (BuildContext context, AsyncSnapshot<Position> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const CircularProgressIndicator();
-        } else if (snapshot.hasError) {
-          return Text('Error: ${snapshot.error}');
-        } else if (snapshot.hasData) {
-          return FutureBuilder<List<ListTile>>(
-            future: _stopTilesFuture, // Routes can be passed if needed
-            builder: (BuildContext context, AsyncSnapshot<List<ListTile>> listTileSnapshot) {
-                if (listTileSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              } else if (listTileSnapshot.hasError) {
-                return Text('Error: ${listTileSnapshot.error}');
-              } else if (listTileSnapshot.hasData) {
-                return ListView(
-                  children: listTileSnapshot.data!,
-                );
-              } else {
-                return const Text('No stop data available');
-              }
-            },
-          );
-        } else {
-          return const Text('No location data available');
+    return FutureBuilder<List<ListTile>>(
+      future: _stopTilesFuture,
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
         }
+        if (snap.hasError) {
+          return Center(child: Text('Error: ${snap.error}'));
+        }
+        final tiles = snap.data!;
+        return ListView(children: tiles);
       },
     );
   }
