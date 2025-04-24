@@ -38,7 +38,8 @@ flutter:
     - assets/images/
 
 flutter_icons:
-  android: false               # Disable Android icon generation
+  android: true               # Disable Android icon generation
   ios: true                    # Enable iOS icon generation
   image_path: "assets/images/better_tfi_logo.png" # Path to your app icon (1024x1024 recommended)
   adaptive_icon_background: "#FFFFFF" # Optional background color for iOS
+  remove_alpha_ios: true

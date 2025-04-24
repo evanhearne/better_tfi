@@ -7,8 +7,8 @@ import 'pages/fare_cost_page.dart';
 
 // Replace the strings here with your own API endpoints
 
-const String apiBaseUrl1 = 'http://192.168.68.113:8080'; // gtfsr endpoint
-const String apiBaseUrl2 = 'http://192.168.68.113:8081'; // csv endpoint
+const String apiBaseUrl1 = 'http://184.73.162.246:8080'; // gtfsr endpoint
+const String apiBaseUrl2 = 'http://184.73.162.246:8081'; // csv endpoint
 
 
 void main() async {

@@ -28,7 +28,8 @@ As an alternative to TFI Live, users can have more choice within the market, and
 
 ## Features
  + **Real Time Info** : Use geo-location or search to find bus stops and their next departures.
- + **Timetable (in progress)** : Use search to find and save timetables for the routes you use.
+ 
+ + **Timetable** : Use search to find timetables for the routes you use.
 
  (Screenshots to come later...)
 
