@@ -44,3 +44,4 @@ app.*.map.json
 backend/gtfsr/x-api-key.txt
 assets/csv/*.txt
 android/app/BetterTFIKeyStore
+android/app/.cxx
